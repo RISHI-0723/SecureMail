@@ -5,6 +5,7 @@ from app.core.database import Base
 from app.models.case import Case, CaseStatus
 from app.models.evidence import PcapEvidence, EvidenceStatus, FileFormat
 from app.models.analysis_job import AnalysisJob, JobStatus, JobType
+from app.models.packet_analysis import PacketAnalysis
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "AnalysisJob",
     "JobStatus",
     "JobType",
+    "PacketAnalysis",
 ]

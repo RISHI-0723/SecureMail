@@ -67,6 +67,10 @@ class Settings(BaseSettings):
         """Maximum PCAP size in bytes."""
         return self.max_pcap_size_mb * 1024 * 1024
 
+    # TShark Configuration (Phase 2)
+    tshark_binary: str = "tshark"
+    tshark_timeout_seconds: int = 300
+
     # Logging
     log_level: str = "INFO"
 

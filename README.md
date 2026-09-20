@@ -6,48 +6,93 @@ SecureMailScope is a passive network-forensic platform that analyzes PCAP/PCAPNG
 
 ---
 
-## Current Phase: Phase 1 - Evidence Ingestion
+## Current Phase: Phase 2 - Packet and Email Protocol Analysis
 
-This repository is currently at **Phase 1**, which implements the Evidence Ingestion subsystem. The foundational infrastructure from Phase 0 is complete and operational.
+This repository is currently at **Phase 2**, which implements Packet and Email Protocol Analysis using TShark. Phase 0 (Foundation) and Phase 1 (Evidence Ingestion) are complete.
 
-### Phase 1 Capabilities
+### Phase 2 Capabilities
 
-Phase 1 provides:
-- ✅ Forensic case management (create, list, view, delete)
-- ✅ PCAP/PCAPNG file upload
-- ✅ Magic-byte validation (NOT TShark-based)
-- ✅ SHA-256 evidence hashing
-- ✅ Duplicate evidence detection
-- ✅ Secure file storage with Docker volume persistence
-- ✅ Evidence metadata tracking
-- ✅ Analysis job creation (QUEUED state)
-- ✅ REST API for all operations
-- ✅ React frontend with case management and upload UI
-- ✅ Configurable file size limits
+Phase 2 provides:
+- ✅ TShark-based packet extraction
+- ✅ SMTP protocol detection (ports 25, 465, 587 + TShark dissector)
+- ✅ IMAP protocol detection (ports 143, 993 + TShark dissector)
+- ✅ POP3 protocol detection (ports 110, 995 + TShark dissector)
+- ✅ TLS presence detection (no security analysis yet)
+- ✅ Non-standard port detection via TShark dissector
+- ✅ Protocol session candidates (packet groupings)
+- ✅ TShark binary validation (fails fast if missing)
+- ✅ Configurable TShark timeout
+- ✅ Analysis job lifecycle (QUEUED → RUNNING → COMPLETED/FAILED/TIMEOUT)
+- ✅ Worker crash recovery (RUNNING jobs marked FAILED on restart)
+- ✅ REST API for analysis triggers and results
+- ✅ Celery retry policy (only DB errors, max 2 retries, 10s backoff)
 
-### Phase 1 Validation Details
+### Phase 2 Architecture
 
-**IMPORTANT**: Phase 1 validation uses **ONLY magic-byte checking**:
-- PCAP signatures: `0xd4c3b2a1` (little-endian), `0xa1b2c3d4` (big-endian)
-- PCAPNG signature: `0x0a0d0d0a` (Section Header Block)
+```
+Evidence Upload (Phase 1)
+        ↓
+Analysis Job (QUEUED)
+        ↓
+POST /api/v1/evidence/{id}/analyze
+        ↓
+Celery Worker
+        ↓
+TShark Binary Validation (fails fast if missing)
+        ↓
+TShark Packet Extraction
+        ↓
+Packet Parser
+        ↓
+Protocol Detector
+        ↓
+PacketAnalysis Persisted
+        ↓
+Job COMPLETED
+```
 
-Phase 1 does **NOT** invoke TShark, Scapy, or PyShark for validation. These tools will be used in Phase 2 for actual packet analysis.
+### Phase 2 API Endpoints
 
-### What's NOT in Phase 1
+- `POST /api/v1/evidence/{evidence_id}/analyze` - Trigger analysis
+- `GET /api/v1/analysis/{job_id}` - Get job status
+- `GET /api/v1/analysis/{job_id}/summary` - Get packet analysis summary
+- `GET /api/v1/analysis/{job_id}/protocols` - Get detected protocols
 
-Phase 1 does NOT include:
-- ❌ TShark packet extraction
-- ❌ Email protocol detection (SMTP/IMAP/POP3)
-- ❌ TCP stream reconstruction
-- ❌ TLS/X.509 analysis
-- ❌ STARTTLS/implicit TLS detection
-- ❌ Cryptographic security findings
-- ❌ Risk scoring or recommendations
-- ❌ Machine learning
-- ❌ Blockchain verification
-- ❌ Report generation
+### Phase 2 Boundaries
 
-These features will be implemented in Phases 2-10.
+**Phase 2 implements ONLY:**
+- Packet extraction
+- Protocol identification
+
+**Phase 2 does NOT implement:**
+- ❌ TCP stream reconstruction (Phase 3)
+- ❌ STARTTLS/STLS success/failure analysis (Phase 4)
+- ❌ TLS security analysis (Phase 5)
+- ❌ Certificate validation (Phase 5)
+- ❌ Cryptographic security assessment (Phase 6)
+- ❌ Risk scoring (Phase 6)
+- ❌ Recommendations (Phase 6)
+- ❌ Machine learning (Phase 8)
+- ❌ Blockchain verification (Phase 9)
+- ❌ Report generation (Phase 9)
+
+### Previous Phases
+
+#### Phase 1 - Evidence Ingestion (COMPLETE)
+- Forensic case management
+- PCAP/PCAPNG file upload
+- Magic-byte validation
+- SHA-256 evidence hashing
+- Duplicate detection
+- Secure file storage
+
+#### Phase 0 - Foundation (COMPLETE)
+- Docker Compose infrastructure
+- FastAPI backend
+- React frontend
+- PostgreSQL database
+- Redis cache
+- Celery workers
 
 ---
 

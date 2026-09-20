@@ -1,14 +1,26 @@
-"""Analysis job API endpoints."""
+"""Analysis job API endpoints.
+
+Phase 2 adds packet analysis summary and protocol detection endpoints.
+"""
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 
 from app.core.database import get_db
-from app.models.analysis_job import AnalysisJob
+from app.models.analysis_job import AnalysisJob, JobStatus
 from app.models.evidence import PcapEvidence
-from app.schemas.analysis import AnalysisJobResponse, AnalysisJobListResponse
+from app.models.packet_analysis import PacketAnalysis
+from app.schemas.analysis import (
+    AnalysisJobResponse,
+    AnalysisJobListResponse,
+    PacketAnalysisSummaryResponse,
+    ProtocolSummaryResponse,
+    ProtocolDetectionResponse,
+    SessionCandidateResponse,
+    TriggerAnalysisResponse,
+)
 from app.schemas.common import ApiResponse
+from app.workers.tasks import analyze_evidence
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -26,9 +38,6 @@ async def get_analysis_job(
 ) -> ApiResponse[AnalysisJobResponse]:
     """
     Get the status and details of an analysis job.
-
-    Note: In Phase 1, analysis jobs are created but not processed.
-    Full forensic analysis begins in Phase 2.
 
     Args:
         job_id: Analysis job identifier
@@ -48,6 +57,259 @@ async def get_analysis_job(
         )
 
     return ApiResponse.ok(AnalysisJobResponse.model_validate(job))
+
+
+@router.get(
+    "/analysis/{job_id}/summary",
+    response_model=ApiResponse[PacketAnalysisSummaryResponse],
+    tags=["Analysis"],
+    summary="Get packet analysis summary"
+)
+async def get_analysis_summary(
+    job_id: str,
+    db: Session = Depends(get_db)
+) -> ApiResponse[PacketAnalysisSummaryResponse]:
+    """
+    Get the packet analysis summary for a completed job.
+
+    Phase 2 endpoint providing packet counts, protocol detection,
+    and session candidate information.
+
+    Args:
+        job_id: Analysis job identifier
+        db: Database session
+
+    Returns:
+        Packet analysis summary
+    """
+    # Get the job first
+    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ANALYSIS_JOB_NOT_FOUND",
+                "message": f"Analysis job not found: {job_id}"
+            }
+        )
+
+    # Get packet analysis
+    analysis = db.query(PacketAnalysis).filter(
+        PacketAnalysis.job_id == job_id
+    ).first()
+
+    if not analysis:
+        # No analysis yet - check job status
+        if job.status == JobStatus.QUEUED:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "ANALYSIS_NOT_STARTED",
+                    "message": "Analysis has not started yet"
+                }
+            )
+        elif job.status == JobStatus.RUNNING:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "ANALYSIS_IN_PROGRESS",
+                    "message": f"Analysis is in progress: {job.stage}"
+                }
+            )
+        elif job.status in (JobStatus.FAILED, JobStatus.TIMEOUT):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": job.error_code or "ANALYSIS_FAILED",
+                    "message": job.error_message or "Analysis failed"
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "ANALYSIS_NOT_FOUND",
+                    "message": "No analysis results found"
+                }
+            )
+
+    # Build response
+    response = PacketAnalysisSummaryResponse(
+        analysis_id=analysis.analysis_id,
+        job_id=analysis.job_id,
+        evidence_id=analysis.evidence_id,
+        status=job.status.value,
+        tshark_version=analysis.tshark_version,
+        analysis_timestamp=analysis.analysis_timestamp,
+        duration_seconds=analysis.duration_seconds,
+        total_packets=analysis.total_packets,
+        email_packets=analysis.email_packets,
+        smtp_packets=analysis.smtp_packets,
+        imap_packets=analysis.imap_packets,
+        pop3_packets=analysis.pop3_packets,
+        tls_packets=analysis.tls_packets,
+        other_packets=analysis.other_packets,
+        protocols_detected=analysis.protocols_detected or [],
+        protocol_detections=[
+            ProtocolDetectionResponse(**d) for d in (analysis.protocol_detections or [])
+        ],
+        session_candidates=[
+            SessionCandidateResponse(**c) for c in (analysis.session_candidates or [])
+        ],
+        message=analysis.message,
+    )
+
+    return ApiResponse.ok(response)
+
+
+@router.get(
+    "/analysis/{job_id}/protocols",
+    response_model=ApiResponse[ProtocolSummaryResponse],
+    tags=["Analysis"],
+    summary="Get detected protocols summary"
+)
+async def get_protocols_summary(
+    job_id: str,
+    db: Session = Depends(get_db)
+) -> ApiResponse[ProtocolSummaryResponse]:
+    """
+    Get a summary of detected protocols for an analysis job.
+
+    Provides a quick overview of which email protocols were detected.
+
+    Args:
+        job_id: Analysis job identifier
+        db: Database session
+
+    Returns:
+        Protocol detection summary
+    """
+    # Get the job
+    job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ANALYSIS_JOB_NOT_FOUND",
+                "message": f"Analysis job not found: {job_id}"
+            }
+        )
+
+    # Get packet analysis
+    analysis = db.query(PacketAnalysis).filter(
+        PacketAnalysis.job_id == job_id
+    ).first()
+
+    if not analysis:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ANALYSIS_NOT_FOUND",
+                "message": "No analysis results found for this job"
+            }
+        )
+
+    response = ProtocolSummaryResponse(
+        protocols_detected=analysis.protocols_detected or [],
+        protocol_counts={
+            "SMTP": analysis.smtp_packets,
+            "IMAP": analysis.imap_packets,
+            "POP3": analysis.pop3_packets,
+            "TLS": analysis.tls_packets,
+        },
+        total_email_packets=analysis.email_packets,
+        has_tls=analysis.tls_packets > 0,
+        session_count=len(analysis.session_candidates or []),
+    )
+
+    return ApiResponse.ok(response)
+
+
+@router.post(
+    "/evidence/{evidence_id}/analyze",
+    response_model=ApiResponse[TriggerAnalysisResponse],
+    tags=["Analysis"],
+    summary="Trigger analysis for evidence"
+)
+async def trigger_analysis(
+    evidence_id: str,
+    db: Session = Depends(get_db)
+) -> ApiResponse[TriggerAnalysisResponse]:
+    """
+    Trigger packet analysis for evidence.
+
+    If a QUEUED job exists, it will be started. Otherwise returns
+    the status of the existing job.
+
+    Args:
+        evidence_id: Evidence identifier
+        db: Database session
+
+    Returns:
+        Analysis trigger result
+    """
+    # Check evidence exists
+    evidence = db.query(PcapEvidence).filter(
+        PcapEvidence.evidence_id == evidence_id
+    ).first()
+    if not evidence:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "EVIDENCE_NOT_FOUND",
+                "message": f"Evidence not found: {evidence_id}"
+            }
+        )
+
+    # Get the latest job for this evidence
+    job = db.query(AnalysisJob).filter(
+        AnalysisJob.evidence_id == evidence_id
+    ).order_by(AnalysisJob.created_at.desc()).first()
+
+    if not job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "ANALYSIS_JOB_NOT_FOUND",
+                "message": "No analysis job found for this evidence"
+            }
+        )
+
+    # Check job status
+    if job.status == JobStatus.QUEUED:
+        # Trigger analysis
+        logger.info(
+            f"Triggering analysis for job {job.job_id}",
+            extra={"job_id": job.job_id, "evidence_id": evidence_id}
+        )
+        analyze_evidence.delay(job.job_id)
+
+        return ApiResponse.ok(TriggerAnalysisResponse(
+            job_id=job.job_id,
+            status="TRIGGERED",
+            message="Analysis has been triggered"
+        ))
+
+    elif job.status == JobStatus.RUNNING:
+        return ApiResponse.ok(TriggerAnalysisResponse(
+            job_id=job.job_id,
+            status="RUNNING",
+            message=f"Analysis is already running: {job.stage}"
+        ))
+
+    elif job.status == JobStatus.COMPLETED:
+        return ApiResponse.ok(TriggerAnalysisResponse(
+            job_id=job.job_id,
+            status="COMPLETED",
+            message="Analysis has already completed"
+        ))
+
+    else:  # FAILED, TIMEOUT, etc.
+        return ApiResponse.ok(TriggerAnalysisResponse(
+            job_id=job.job_id,
+            status=job.status.value,
+            message=job.error_message or f"Analysis {job.status.value}"
+        ))
 
 
 @router.get(

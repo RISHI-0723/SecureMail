@@ -16,6 +16,12 @@ from app.schemas.evidence import (
 from app.schemas.analysis import (
     AnalysisJobResponse,
     AnalysisJobListResponse,
+    # Phase 2
+    PacketAnalysisSummaryResponse,
+    ProtocolSummaryResponse,
+    ProtocolDetectionResponse,
+    SessionCandidateResponse,
+    TriggerAnalysisResponse,
 )
 from app.schemas.health import (
     HealthResponse,
@@ -42,6 +48,12 @@ __all__ = [
     # Analysis
     "AnalysisJobResponse",
     "AnalysisJobListResponse",
+    # Phase 2 Packet Analysis
+    "PacketAnalysisSummaryResponse",
+    "ProtocolSummaryResponse",
+    "ProtocolDetectionResponse",
+    "SessionCandidateResponse",
+    "TriggerAnalysisResponse",
     # Health
     "HealthResponse",
     "DependencyStatus",

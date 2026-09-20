@@ -18,6 +18,7 @@ class JobStatus(str, PyEnum):
     FAILED = "FAILED"
     PARTIAL = "PARTIAL"
     CANCELLED = "CANCELLED"
+    TIMEOUT = "TIMEOUT"
 
 
 class JobType(str, PyEnum):
