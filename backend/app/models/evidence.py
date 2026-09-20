@@ -61,7 +61,7 @@ class PcapEvidence(Base):
     original_filename = Column(String(512), nullable=False)
     stored_filename = Column(String(128), nullable=False, unique=True)
     file_format = Column(
-        Enum(FileFormat),
+        Enum(FileFormat, values_callable=lambda obj: [e.value for e in obj]),
         nullable=False,
         default=FileFormat.UNKNOWN
     )
