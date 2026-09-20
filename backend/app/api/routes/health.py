@@ -12,6 +12,8 @@ from app.schemas.health import HealthResponse, DependenciesHealthResponse, Depen
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+APP_VERSION = "0.2.0-phase1"
+
 
 @router.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check() -> HealthResponse:
@@ -23,7 +25,7 @@ async def health_check() -> HealthResponse:
     return HealthResponse(
         status="healthy",
         service="SecureMailScope API",
-        version="0.1.0-phase0"
+        version=APP_VERSION
     )
 
 
@@ -59,7 +61,7 @@ async def dependencies_health_check(db: Session = Depends(get_db)) -> Dependenci
     return DependenciesHealthResponse(
         status=overall_status,
         service="SecureMailScope API",
-        version="0.1.0-phase0",
+        version=APP_VERSION,
         dependencies=dependencies
     )
 

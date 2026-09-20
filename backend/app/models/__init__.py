@@ -2,6 +2,18 @@
 from app.core.database import Base
 
 # Import all models here for Alembic auto-generation
-# For Phase 0, we'll create a minimal placeholder model
+from app.models.case import Case, CaseStatus
+from app.models.evidence import PcapEvidence, EvidenceStatus, FileFormat
+from app.models.analysis_job import AnalysisJob, JobStatus, JobType
 
-__all__ = ["Base"]
+__all__ = [
+    "Base",
+    "Case",
+    "CaseStatus",
+    "PcapEvidence",
+    "EvidenceStatus",
+    "FileFormat",
+    "AnalysisJob",
+    "JobStatus",
+    "JobType",
+]

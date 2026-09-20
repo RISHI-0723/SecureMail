@@ -2,7 +2,15 @@
   "permissions": {
     "allow": [
       "Bash(python -m pytest:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(dir:*)",
+      "Bash(docker compose config:*)",
+      "Bash(python:*)",
+      "Bash(npm --version:*)",
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm run build:*)",
+      "Bash(docker compose exec:*)"
     ]
   }
 }

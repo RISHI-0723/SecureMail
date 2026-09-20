@@ -1,4 +1,4 @@
-"""SecureMailScope FastAPI Application - Phase 0 Foundation."""
+"""SecureMailScope FastAPI Application - Phase 1 Evidence Ingestion."""
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -6,11 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.routes import health
+from app.api.routes import health, cases, evidence, analysis
 
 # Setup structured logging
 setup_logging()
 logger = logging.getLogger(__name__)
+
+
+APP_VERSION = "0.2.0-phase1"
 
 
 @asynccontextmanager
@@ -22,7 +25,7 @@ async def lifespan(app: FastAPI):
         extra={
             "app": settings.app_name,
             "environment": settings.environment,
-            "version": "0.1.0-phase0"
+            "version": APP_VERSION
         }
     )
     yield
@@ -34,7 +37,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SecureMailScope API",
     description="AI-Assisted Cryptographic Security Posture Assessment for Secure Email Communications",
-    version="0.1.0-phase0",
+    version=APP_VERSION,
     lifespan=lifespan
 )
 
@@ -49,6 +52,9 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, prefix="/api/v1")
+app.include_router(cases.router, prefix="/api/v1/cases")
+app.include_router(evidence.router, prefix="/api/v1")
+app.include_router(analysis.router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -56,7 +62,7 @@ async def root():
     """Root endpoint."""
     return {
         "service": "SecureMailScope API",
-        "version": "0.1.0-phase0",
+        "version": APP_VERSION,
         "status": "operational",
-        "phase": "Phase 0 - Foundation"
+        "phase": "Phase 1 - Evidence Ingestion"
     }

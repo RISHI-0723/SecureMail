@@ -58,6 +58,15 @@ class Settings(BaseSettings):
     # PCAP Processing
     max_pcap_size_mb: int = 500
 
+    # Evidence Storage
+    evidence_storage_path: str = "/app/data/evidence"
+    allowed_pcap_extensions: str = ".pcap,.pcapng"
+
+    @property
+    def max_pcap_size_bytes(self) -> int:
+        """Maximum PCAP size in bytes."""
+        return self.max_pcap_size_mb * 1024 * 1024
+
     # Logging
     log_level: str = "INFO"
 

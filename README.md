@@ -6,38 +6,48 @@ SecureMailScope is a passive network-forensic platform that analyzes PCAP/PCAPNG
 
 ---
 
-## Current Phase: Phase 0 - Foundation
+## Current Phase: Phase 1 - Evidence Ingestion
 
-This repository is currently at **Phase 0**, which establishes the foundational infrastructure. PCAP analysis and forensic capabilities will be implemented in subsequent phases.
+This repository is currently at **Phase 1**, which implements the Evidence Ingestion subsystem. The foundational infrastructure from Phase 0 is complete and operational.
 
-### Phase 0 Scope
+### Phase 1 Capabilities
 
-Phase 0 provides:
-- ✅ FastAPI backend with structured JSON logging
-- ✅ React + TypeScript + Vite frontend with Tailwind CSS
-- ✅ PostgreSQL database with SQLAlchemy ORM
-- ✅ Alembic database migration system
-- ✅ Redis for caching and message broker
-- ✅ Celery for asynchronous task processing
-- ✅ Docker Compose orchestration
-- ✅ Health check endpoints
-- ✅ Frontend/backend connectivity
-- ✅ Basic test infrastructure
+Phase 1 provides:
+- ✅ Forensic case management (create, list, view, delete)
+- ✅ PCAP/PCAPNG file upload
+- ✅ Magic-byte validation (NOT TShark-based)
+- ✅ SHA-256 evidence hashing
+- ✅ Duplicate evidence detection
+- ✅ Secure file storage with Docker volume persistence
+- ✅ Evidence metadata tracking
+- ✅ Analysis job creation (QUEUED state)
+- ✅ REST API for all operations
+- ✅ React frontend with case management and upload UI
+- ✅ Configurable file size limits
 
-### What's NOT in Phase 0
+### Phase 1 Validation Details
 
-Phase 0 does NOT include:
-- ❌ PCAP file upload or parsing
-- ❌ TShark integration
-- ❌ Email protocol analysis (SMTP/IMAP/POP3)
+**IMPORTANT**: Phase 1 validation uses **ONLY magic-byte checking**:
+- PCAP signatures: `0xd4c3b2a1` (little-endian), `0xa1b2c3d4` (big-endian)
+- PCAPNG signature: `0x0a0d0d0a` (Section Header Block)
+
+Phase 1 does **NOT** invoke TShark, Scapy, or PyShark for validation. These tools will be used in Phase 2 for actual packet analysis.
+
+### What's NOT in Phase 1
+
+Phase 1 does NOT include:
+- ❌ TShark packet extraction
+- ❌ Email protocol detection (SMTP/IMAP/POP3)
 - ❌ TCP stream reconstruction
 - ❌ TLS/X.509 analysis
-- ❌ Cryptographic security assessment
-- ❌ Machine learning models
-- ❌ Blockchain evidence verification
-- ❌ Advanced reporting (PDF/HTML)
+- ❌ STARTTLS/implicit TLS detection
+- ❌ Cryptographic security findings
+- ❌ Risk scoring or recommendations
+- ❌ Machine learning
+- ❌ Blockchain verification
+- ❌ Report generation
 
-These features will be implemented in Phases 1-10 according to the project roadmap in `Claude.md`.
+These features will be implemented in Phases 2-10.
 
 ---
 
@@ -111,7 +121,13 @@ This will start:
 - **Redis** on localhost:6379
 - **Celery Worker** (background)
 
-### 4. Access the Application
+### 4. Run Database Migrations
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+### 5. Access the Application
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8000
@@ -120,44 +136,88 @@ This will start:
 
 ---
 
-## Local Development Setup
+## API Endpoints
 
-### Backend Setup
+### Health Endpoints
 
-```bash
-cd backend
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Root endpoint with service info |
+| GET | `/api/v1/health` | Basic health check |
+| GET | `/api/v1/health/dependencies` | Detailed health with dependencies |
 
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+### Case Endpoints
 
-# Install dependencies
-pip install -r requirements.txt
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/cases` | Create a new forensic case |
+| GET | `/api/v1/cases` | List all cases |
+| GET | `/api/v1/cases/{case_id}` | Get case details |
+| PATCH | `/api/v1/cases/{case_id}` | Update case |
+| DELETE | `/api/v1/cases/{case_id}` | Delete case |
 
-# Set up environment variables
-export POSTGRES_HOST=localhost
-export REDIS_HOST=localhost
+### Evidence Endpoints
 
-# Run database migrations
-alembic upgrade head
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/cases/{case_id}/evidence` | Upload PCAP/PCAPNG evidence |
+| GET | `/api/v1/cases/{case_id}/evidence` | List case evidence |
+| GET | `/api/v1/evidence/{evidence_id}` | Get evidence details |
+| DELETE | `/api/v1/evidence/{evidence_id}` | Delete evidence |
 
-# Start backend server
-uvicorn app.main:app --reload
+### Analysis Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/analysis/{job_id}` | Get analysis job status |
+| GET | `/api/v1/evidence/{evidence_id}/analysis` | Get evidence analysis jobs |
+| GET | `/api/v1/analysis` | List all analysis jobs |
+
+---
+
+## Evidence Upload
+
+### Supported File Formats
+- `.pcap` - Standard PCAP format
+- `.pcapng` - Next Generation PCAP format
+
+### File Size Limit
+Configurable via `MAX_PCAP_SIZE_MB` environment variable (default: 500 MB).
+
+### Upload Response Example
+
+```json
+{
+  "success": true,
+  "data": {
+    "evidence_id": "ev_abc123...",
+    "case_id": "case_xyz...",
+    "original_filename": "enterprise_mail.pcapng",
+    "file_size_bytes": 1839201,
+    "file_format": "pcapng",
+    "sha256": "a91f3c7e...",
+    "evidence_status": "VALIDATED",
+    "analysis_job_id": "job_123...",
+    "analysis_status": "QUEUED"
+  }
+}
 ```
 
-### Frontend Setup
+### Error Responses
 
-```bash
-cd frontend
+| Error Code | Description |
+|------------|-------------|
+| `EMPTY_FILE` | File is empty |
+| `FILE_TOO_LARGE` | File exceeds maximum size |
+| `UNSUPPORTED_FILE_TYPE` | Not a PCAP/PCAPNG file |
+| `INVALID_PCAP` | Has .pcap extension but invalid magic bytes |
+| `INVALID_PCAPNG` | Has .pcapng extension but invalid magic bytes |
+| `DUPLICATE_EVIDENCE` | Same hash already exists in this case |
+| `CASE_NOT_FOUND` | Target case does not exist |
 
-# Install dependencies
-npm install
+---
 
-# Start development server
-npm run dev
-```
-
-### Running Tests
+## Running Tests
 
 ```bash
 cd backend
@@ -169,65 +229,65 @@ pytest
 pytest --cov=app tests/
 
 # Run specific test file
-pytest tests/test_health.py
+pytest tests/test_validation.py
+pytest tests/test_cases_api.py
+pytest tests/test_evidence_api.py
+pytest tests/test_analysis_api.py
+
+# Run with verbose output
+pytest -v
 ```
 
 ---
 
-## API Endpoints
+## Environment Variables
 
-### Phase 0 Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Root endpoint with service info |
-| GET | `/api/v1/health` | Basic health check |
-| GET | `/api/v1/health/dependencies` | Detailed health with dependencies |
-
-All endpoints return structured JSON responses with proper error handling.
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSTGRES_USER` | securemailscope | Database user |
+| `POSTGRES_PASSWORD` | changeme | Database password (CHANGE THIS!) |
+| `POSTGRES_HOST` | postgres | Database host |
+| `POSTGRES_DB` | securemailscope | Database name |
+| `REDIS_HOST` | redis | Redis host |
+| `LOG_LEVEL` | INFO | Logging level |
+| `MAX_PCAP_SIZE_MB` | 500 | Max PCAP file size in MB |
+| `EVIDENCE_STORAGE_PATH` | /app/data/evidence | Evidence storage directory |
 
 ---
 
-## Project Structure
+## Docker Services
 
+### View Running Services
+
+```bash
+docker compose ps
 ```
-securemailscope/
-├── backend/                    # FastAPI backend
-│   ├── app/
-│   │   ├── api/               # API routes
-│   │   │   └── routes/        # Route modules
-│   │   ├── core/              # Core configuration
-│   │   ├── models/            # SQLAlchemy models
-│   │   ├── schemas/           # Pydantic schemas
-│   │   ├── services/          # Business logic
-│   │   └── workers/           # Celery tasks
-│   ├── migrations/            # Alembic migrations
-│   ├── tests/                 # Backend tests
-│   ├── Dockerfile
-│   └── requirements.txt
-│
-├── frontend/                   # React frontend
-│   ├── src/
-│   │   ├── components/        # React components
-│   │   ├── services/          # API services
-│   │   ├── types/             # TypeScript types
-│   │   ├── App.tsx            # Main app component
-│   │   └── main.tsx           # Entry point
-│   ├── Dockerfile
-│   └── package.json
-│
-├── ml/                        # ML components (future)
-├── blockchain/                # Blockchain integration (future)
-├── sample_pcaps/              # Sample PCAP files (future)
-├── tests/                     # Integration tests (future)
-├── docs/                      # Documentation
-│
-├── docker-compose.yml         # Docker Compose configuration
-├── .env.example               # Environment template
-├── .gitignore
-├── Claude.md                  # Project specification
-└── README.md
+
+### View Logs
+
+```bash
+# All services
+docker compose logs -f
+
+# Specific service
+docker compose logs -f backend
+docker compose logs -f frontend
+docker compose logs -f worker
 ```
+
+### Evidence Storage
+
+Evidence files are stored in a Docker volume (`evidence_data`) that persists across container restarts:
+
+```yaml
+volumes:
+  evidence_data:  # Persistent evidence storage
+```
+
+To verify evidence persistence:
+1. Upload a PCAP file
+2. Restart containers: `docker compose restart backend`
+3. Evidence should still be accessible
 
 ---
 
@@ -254,59 +314,88 @@ alembic downgrade -1
 
 ---
 
-## Environment Variables
+## Project Structure
 
-Key environment variables (see `.env.example` for complete list):
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `POSTGRES_USER` | securemailscope | Database user |
-| `POSTGRES_PASSWORD` | changeme | Database password (CHANGE THIS!) |
-| `POSTGRES_HOST` | postgres | Database host |
-| `POSTGRES_DB` | securemailscope | Database name |
-| `REDIS_HOST` | redis | Redis host |
-| `LOG_LEVEL` | INFO | Logging level |
-| `MAX_PCAP_SIZE_MB` | 500 | Max PCAP file size (future) |
+```
+securemailscope/
+├── backend/                    # FastAPI backend
+│   ├── app/
+│   │   ├── api/               # API routes
+│   │   │   └── routes/
+│   │   │       ├── health.py     # Health endpoints
+│   │   │       ├── cases.py      # Case endpoints
+│   │   │       ├── evidence.py   # Evidence endpoints
+│   │   │       └── analysis.py   # Analysis endpoints
+│   │   ├── core/              # Core configuration
+│   │   ├── models/            # SQLAlchemy models
+│   │   │   ├── case.py           # Case model
+│   │   │   ├── evidence.py       # Evidence model
+│   │   │   └── analysis_job.py   # Analysis job model
+│   │   ├── schemas/           # Pydantic schemas
+│   │   ├── services/          # Business logic
+│   │   │   └── ingestion/        # Evidence ingestion
+│   │   │       ├── storage.py       # Storage abstraction
+│   │   │       ├── validation.py    # File validation
+│   │   │       └── evidence_service.py
+│   │   └── workers/           # Celery tasks
+│   ├── migrations/            # Alembic migrations
+│   ├── tests/                 # Backend tests
+│   ├── Dockerfile
+│   └── requirements.txt
+│
+├── frontend/                   # React frontend
+│   ├── src/
+│   │   ├── components/        # React components
+│   │   ├── pages/             # Page components
+│   │   │   ├── CasesPage.tsx     # Cases list
+│   │   │   └── CaseDetailPage.tsx # Case details + upload
+│   │   ├── services/          # API services
+│   │   ├── types/             # TypeScript types
+│   │   ├── App.tsx            # Main app component
+│   │   └── main.tsx           # Entry point
+│   ├── Dockerfile
+│   └── package.json
+│
+├── docker-compose.yml         # Docker Compose configuration
+├── .env.example               # Environment template
+├── Claude.md                  # Project specification
+└── README.md
+```
 
 ---
 
-## Docker Services
+## Development Roadmap
 
-### View Running Services
+### Completed
+- ✅ Phase 0: Foundation
+- ✅ Phase 1: Evidence Ingestion (current)
 
-```bash
-docker compose ps
-```
+### Upcoming Phases
+- 🔲 Phase 2: Packet and Email Protocol Analysis (TShark integration)
+- 🔲 Phase 3: TCP Stream Reconstruction
+- 🔲 Phase 4: Email Security and TLS Transitions
+- 🔲 Phase 5: TLS and X.509 Intelligence
+- 🔲 Phase 6: Cryptographic Security Assessment
+- 🔲 Phase 7: MVP Frontend
+- 🔲 Phase 8: AI/ML
+- 🔲 Phase 9: Reports and Evidence Integrity
+- 🔲 Phase 10: Production Hardening
 
-### View Logs
+See `Claude.md` for detailed phase specifications.
 
-```bash
-# All services
-docker compose logs -f
+---
 
-# Specific service
-docker compose logs -f backend
-docker compose logs -f frontend
-docker compose logs -f worker
-```
+## Current Limitations (Phase 1)
 
-### Restart a Service
+- Analysis jobs are created but not processed (Phase 2+)
+- No TLS/certificate analysis (Phase 5)
+- No email protocol detection (Phase 2)
+- No security findings or recommendations (Phase 6)
+- No ML/AI capabilities (Phase 8)
+- Authentication not yet implemented (Phase 10)
+- No production deployment configuration (Phase 10)
 
-```bash
-docker compose restart backend
-```
-
-### Stop All Services
-
-```bash
-docker compose down
-```
-
-### Clean Up (Remove Volumes)
-
-```bash
-docker compose down -v
-```
+These limitations are intentional for Phase 1. Future phases will progressively add functionality.
 
 ---
 
@@ -320,6 +409,12 @@ docker compose down -v
    ```
 2. Verify environment variables in `.env`
 3. Check if port 8000 is already in use
+
+### Evidence upload fails
+
+1. Check file format (.pcap or .pcapng)
+2. Verify file size is within limit
+3. Check backend logs: `docker compose logs backend`
 
 ### Frontend can't connect to backend
 
@@ -339,41 +434,6 @@ alembic upgrade head
 
 ---
 
-## Current Limitations (Phase 0)
-
-- No PCAP upload or analysis functionality
-- No TLS/certificate analysis
-- No email protocol detection
-- No security findings or recommendations
-- No ML/AI capabilities
-- Authentication not yet implemented
-- No production deployment configuration
-
-These limitations are intentional for Phase 0. Future phases will progressively add functionality.
-
----
-
-## Development Roadmap
-
-### Completed
-- ✅ Phase 0: Foundation (current)
-
-### Upcoming Phases
-- 🔲 Phase 1: Evidence Ingestion
-- 🔲 Phase 2: Packet and Email Protocol Analysis
-- 🔲 Phase 3: TCP Stream Reconstruction
-- 🔲 Phase 4: Email Security and TLS Transitions
-- 🔲 Phase 5: TLS and X.509 Intelligence
-- 🔲 Phase 6: Cryptographic Security Assessment
-- 🔲 Phase 7: MVP Frontend
-- 🔲 Phase 8: AI/ML
-- 🔲 Phase 9: Reports and Evidence Integrity
-- 🔲 Phase 10: Production Hardening
-
-See `Claude.md` for detailed phase specifications.
-
----
-
 ## Contributing
 
 This project is currently in active development. Phase implementation follows the strict specifications in `Claude.md`.
@@ -386,10 +446,4 @@ This project is currently in active development. Phase implementation follows th
 
 ---
 
-## Contact
-
-[Contact information to be added]
-
----
-
-**Note**: This is Phase 0 - Foundation. The system is not yet capable of analyzing PCAPs or assessing email security. These capabilities will be added in subsequent phases according to the project specification.
+**Note**: This is Phase 1 - Evidence Ingestion. The system can now accept and validate PCAP/PCAPNG files, but actual forensic analysis (protocol detection, TLS parsing, security assessment) will be added in subsequent phases.

@@ -10,7 +10,7 @@ def test_basic_health_check(client: TestClient):
     data = response.json()
     assert data["status"] == "healthy"
     assert data["service"] == "SecureMailScope API"
-    assert data["version"] == "0.1.0-phase0"
+    assert data["version"] == "0.2.0-phase1"
 
 
 def test_root_endpoint(client: TestClient):
@@ -19,9 +19,9 @@ def test_root_endpoint(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert data["service"] == "SecureMailScope API"
-    assert data["version"] == "0.1.0-phase0"
+    assert data["version"] == "0.2.0-phase1"
     assert data["status"] == "operational"
-    assert data["phase"] == "Phase 0 - Foundation"
+    assert data["phase"] == "Phase 1 - Evidence Ingestion"
 
 
 def test_dependencies_health_check_structure(client: TestClient):

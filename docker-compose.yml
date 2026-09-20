@@ -54,6 +54,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      EVIDENCE_STORAGE_PATH: /app/data/evidence
+      MAX_PCAP_SIZE_MB: ${MAX_PCAP_SIZE_MB:-500}
     depends_on:
       postgres:
         condition: service_healthy
@@ -61,6 +63,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
+      - evidence_data:/app/data/evidence
     networks:
       - securemailscope-network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
@@ -80,6 +83,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      EVIDENCE_STORAGE_PATH: /app/data/evidence
+      MAX_PCAP_SIZE_MB: ${MAX_PCAP_SIZE_MB:-500}
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +94,7 @@ services:
         condition: service_started
     volumes:
       - ./backend:/app
+      - evidence_data:/app/data/evidence
     networks:
       - securemailscope-network
     command: celery -A app.core.celery_app worker --loglevel=info
@@ -116,6 +122,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  evidence_data:
 
 networks:
   securemailscope-network:
