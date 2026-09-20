@@ -1,4 +1,4 @@
-"""SecureMailScope FastAPI Application - Phase 1 Evidence Ingestion."""
+"""SecureMailScope FastAPI Application - Phase 3 Security Intelligence."""
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
@@ -6,14 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.logging import setup_logging
-from app.api.routes import health, cases, evidence, analysis
+from app.api.routes import health, cases, evidence, analysis, security
 
 # Setup structured logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
 
-APP_VERSION = "0.2.0-phase1"
+APP_VERSION = "0.3.0-phase3"
 
 
 @asynccontextmanager
@@ -55,6 +55,7 @@ app.include_router(health.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1/cases")
 app.include_router(evidence.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
+app.include_router(security.router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -64,5 +65,5 @@ async def root():
         "service": "SecureMailScope API",
         "version": APP_VERSION,
         "status": "operational",
-        "phase": "Phase 1 - Evidence Ingestion"
+        "phase": "Phase 3 - Security Intelligence"
     }

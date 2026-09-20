@@ -16,6 +16,7 @@ from app.models import (
     PcapEvidence, EvidenceStatus, FileFormat,
     AnalysisJob, JobStatus, JobType,
     PacketAnalysis,
+    SecurityAnalysis, SecurityAnalysisStatus,
 )
 
 

@@ -28,6 +28,25 @@ from app.schemas.health import (
     DependencyStatus,
     DependenciesHealthResponse,
 )
+from app.schemas.security import (
+    # Phase 3 Security Analysis
+    SecurityAnalysisSummaryResponse,
+    TcpStreamResponse,
+    TcpStreamsResponse,
+    EmailSessionResponse,
+    EmailSessionsResponse,
+    TlsObservationResponse,
+    TlsObservationsResponse,
+    CertificateResponse,
+    CertificatesResponse,
+    FindingResponse,
+    FindingEvidenceResponse,
+    FindingsResponse,
+    DimensionScoreResponse,
+    RiskAssessmentResponse,
+    TriggerSecurityAnalysisRequest,
+    TriggerSecurityAnalysisResponse,
+)
 
 __all__ = [
     # Common
@@ -58,4 +77,21 @@ __all__ = [
     "HealthResponse",
     "DependencyStatus",
     "DependenciesHealthResponse",
+    # Phase 3 Security Analysis
+    "SecurityAnalysisSummaryResponse",
+    "TcpStreamResponse",
+    "TcpStreamsResponse",
+    "EmailSessionResponse",
+    "EmailSessionsResponse",
+    "TlsObservationResponse",
+    "TlsObservationsResponse",
+    "CertificateResponse",
+    "CertificatesResponse",
+    "FindingResponse",
+    "FindingEvidenceResponse",
+    "FindingsResponse",
+    "DimensionScoreResponse",
+    "RiskAssessmentResponse",
+    "TriggerSecurityAnalysisRequest",
+    "TriggerSecurityAnalysisResponse",
 ]
