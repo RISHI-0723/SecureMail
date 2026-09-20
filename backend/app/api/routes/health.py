@@ -12,7 +12,7 @@ from app.schemas.health import HealthResponse, DependenciesHealthResponse, Depen
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-APP_VERSION = "0.2.0-phase1"
+APP_VERSION = "0.3.0-phase3"
 
 
 @router.get("/health", response_model=HealthResponse, tags=["Health"])

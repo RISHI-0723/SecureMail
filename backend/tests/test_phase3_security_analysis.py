@@ -24,11 +24,11 @@ from unittest.mock import patch, MagicMock
 
 # Service imports
 from app.services.tcp import TcpStreamReconstructor
-from app.services.tcp.models import StreamIntegrity, TcpStreamData
+from app.services.tcp.models import StreamIntegrity, TcpStreamData, StreamTermination
 
 from app.services.email import EmailSecurityAnalyzer
 from app.services.email.models import (
-    TransportSecurity, StarttlsState, EmailSecuritySession
+    TransportSecurity, StarttlsState, EmailSecuritySession, StarttlsObservation
 )
 
 from app.services.tls import TlsAnalyzer
@@ -62,46 +62,37 @@ def sample_packets():
     """Create sample packet records for testing."""
     return [
         PacketRecord(
-            frame_number=1,
-            timestamp=datetime.now(timezone.utc),
+            packet_number=1,
+            timestamp=datetime.now(timezone.utc).isoformat(),
             src_ip="192.168.1.1",
             dst_ip="192.168.1.2",
             src_port=12345,
             dst_port=25,
-            protocol="SMTP",
-            stream_id=0,
-            tcp_flags=0x018,  # SYN-ACK
-            tcp_seq=1000,
-            tcp_ack=0,
-            payload_length=100,
+            detected_protocol="SMTP",
+            tcp_stream=0,
+            tcp_flags="0x018",  # SYN-ACK
         ),
         PacketRecord(
-            frame_number=2,
-            timestamp=datetime.now(timezone.utc),
+            packet_number=2,
+            timestamp=datetime.now(timezone.utc).isoformat(),
             src_ip="192.168.1.2",
             dst_ip="192.168.1.1",
             src_port=25,
             dst_port=12345,
-            protocol="SMTP",
-            stream_id=0,
-            tcp_flags=0x010,  # ACK
-            tcp_seq=2000,
-            tcp_ack=1001,
-            payload_length=200,
+            detected_protocol="SMTP",
+            tcp_stream=0,
+            tcp_flags="0x010",  # ACK
         ),
         PacketRecord(
-            frame_number=3,
-            timestamp=datetime.now(timezone.utc),
+            packet_number=3,
+            timestamp=datetime.now(timezone.utc).isoformat(),
             src_ip="192.168.1.1",
             dst_ip="192.168.1.2",
             src_port=12345,
             dst_port=25,
-            protocol="SMTP",
-            stream_id=0,
-            tcp_flags=0x011,  # FIN
-            tcp_seq=1100,
-            tcp_ack=2200,
-            payload_length=0,
+            detected_protocol="SMTP",
+            tcp_stream=0,
+            tcp_flags="0x011",  # FIN
         ),
     ]
 
@@ -116,9 +107,10 @@ def sample_streams():
             client_port=12345,
             server_ip="192.168.1.2",
             server_port=25,
+            protocol="SMTP",
             integrity=StreamIntegrity.COMPLETE,
             packet_count=10,
-            has_fin=True,
+            termination=StreamTermination.FIN,
         ),
         TcpStreamData(
             stream_id=1,
@@ -126,9 +118,11 @@ def sample_streams():
             client_port=23456,
             server_ip="192.168.1.3",
             server_port=993,
+            protocol="IMAP",
             integrity=StreamIntegrity.COMPLETE,
             packet_count=20,
-            has_fin=True,
+            termination=StreamTermination.FIN,
+            has_tls=True,
         ),
     ]
 
@@ -145,8 +139,10 @@ def sample_sessions():
             server_ip="192.168.1.2",
             server_port=25,
             transport_security=TransportSecurity.PLAINTEXT,
-            starttls_advertised=True,
-            starttls_state=StarttlsState.NONE,
+            starttls=StarttlsObservation(
+                state=StarttlsState.NOT_OBSERVED,
+                advertised=True
+            ),
         ),
         EmailSecuritySession(
             session_id="sess_002",
@@ -196,8 +192,8 @@ class TestTcpStreamReconstructor:
         reconstructor.process_packets(sample_packets)
 
         streams = reconstructor.get_streams()
-        # Stream has FIN, should be COMPLETE
-        assert streams[0].has_fin is True
+        # Stream has FIN, check termination type
+        assert streams[0].termination == StreamTermination.FIN
 
     def test_client_server_direction(self, sample_packets):
         """Test client/server identification."""
@@ -213,14 +209,14 @@ class TestTcpStreamReconstructor:
         """Test multiple TCP streams."""
         packets = [
             PacketRecord(
-                frame_number=1, src_ip="10.0.0.1", dst_ip="10.0.0.2",
-                src_port=1000, dst_port=25, protocol="SMTP",
-                stream_id=0, tcp_flags=0, tcp_seq=0, tcp_ack=0
+                packet_number=1, src_ip="10.0.0.1", dst_ip="10.0.0.2",
+                src_port=1000, dst_port=25, detected_protocol="SMTP",
+                tcp_stream=0, tcp_flags="0x000"
             ),
             PacketRecord(
-                frame_number=2, src_ip="10.0.0.1", dst_ip="10.0.0.3",
-                src_port=2000, dst_port=143, protocol="IMAP",
-                stream_id=1, tcp_flags=0, tcp_seq=0, tcp_ack=0
+                packet_number=2, src_ip="10.0.0.1", dst_ip="10.0.0.3",
+                src_port=2000, dst_port=143, detected_protocol="IMAP",
+                tcp_stream=1, tcp_flags="0x000"
             ),
         ]
 
@@ -274,6 +270,7 @@ class TestEmailSecurityAnalyzer:
             TcpStreamData(
                 stream_id=0, client_ip="10.0.0.1", server_ip="10.0.0.2",
                 client_port=1000, server_port=587,  # SMTP submission
+                protocol="SMTP",  # Must set protocol for analyzer to process
                 integrity=StreamIntegrity.COMPLETE,
                 packet_count=5
             )
@@ -312,23 +309,28 @@ class TestTlsAnalyzer:
         assert len(observations) >= 0  # May be 0 if no TLS data in mock
 
     def test_tls_version_security_classification(self):
-        """Test TLS version security classification."""
+        """Test TLS version security classification using VERSION_SECURITY mapping."""
         analyzer = TlsAnalyzer()
 
-        # Test version classification
-        assert analyzer._classify_version_security(TlsVersion.TLS_1_3) == TlsVersionSecurity.MODERN
-        assert analyzer._classify_version_security(TlsVersion.TLS_1_2) == TlsVersionSecurity.ACCEPTABLE
-        assert analyzer._classify_version_security(TlsVersion.TLS_1_1) == TlsVersionSecurity.DEPRECATED
-        assert analyzer._classify_version_security(TlsVersion.TLS_1_0) == TlsVersionSecurity.DEPRECATED
-        assert analyzer._classify_version_security(TlsVersion.SSL_3_0) == TlsVersionSecurity.OBSOLETE
+        # Test version classification using the class constant
+        assert analyzer.VERSION_SECURITY[TlsVersion.TLS_1_3] == TlsVersionSecurity.MODERN
+        assert analyzer.VERSION_SECURITY[TlsVersion.TLS_1_2] == TlsVersionSecurity.ACCEPTABLE
+        assert analyzer.VERSION_SECURITY[TlsVersion.TLS_1_1] == TlsVersionSecurity.DEPRECATED
+        assert analyzer.VERSION_SECURITY[TlsVersion.TLS_1_0] == TlsVersionSecurity.DEPRECATED
+        assert analyzer.VERSION_SECURITY[TlsVersion.SSL_3_0] == TlsVersionSecurity.OBSOLETE
 
     def test_forward_secrecy_detection(self):
         """Test forward secrecy detection from key exchange."""
         analyzer = TlsAnalyzer()
 
-        assert analyzer._has_forward_secrecy("ECDHE") is True
-        assert analyzer._has_forward_secrecy("DHE") is True
-        assert analyzer._has_forward_secrecy("RSA") is False
+        # Test using _detect_key_exchange which returns (KeyExchangeType, forward_secrecy)
+        _, fs_ecdhe = analyzer._detect_key_exchange("ECDHE_RSA_WITH_AES_256_GCM")
+        _, fs_dhe = analyzer._detect_key_exchange("DHE_RSA_WITH_AES_256_GCM")
+        _, fs_rsa = analyzer._detect_key_exchange("RSA_WITH_AES_256_GCM")
+
+        assert fs_ecdhe is True
+        assert fs_dhe is True
+        assert fs_rsa is False
 
 
 # ============================================================
@@ -605,9 +607,11 @@ class TestRiskEngine:
 
         assessment = engine.assess_risk(findings_result)
 
-        # Critical finding should drop score by 25 points
+        # Critical finding should drop score by 25 points (100 - 25 = 75)
         assert assessment.posture.overall_score == 75.0
-        assert assessment.posture.overall_risk == RiskLevel.MEDIUM
+        # Score 75 is >= 75 (not < 75), so it falls into LOW tier (< 90)
+        # Risk levels: CRITICAL (<25), HIGH (<50), MEDIUM (<75), LOW (<90), MINIMAL (>=90)
+        assert assessment.posture.overall_risk == RiskLevel.LOW
 
     def test_score_calculation_formula(self):
         """Test score calculation follows documented formula."""
@@ -723,16 +727,18 @@ class TestSecurityApiEndpoints:
         response = client.get("/api/v1/security/ev_nonexistent/summary")
         assert response.status_code == 404
         data = response.json()
-        assert data["success"] is False
-        assert "SECURITY_ANALYSIS_NOT_FOUND" in str(data)
+        # FastAPI HTTPException returns {"detail": {...}} format
+        assert "detail" in data
+        assert data["detail"]["code"] == "SECURITY_ANALYSIS_NOT_FOUND"
 
     def test_trigger_analysis_evidence_not_found(self, client, test_db):
         """Test trigger returns 404 when evidence doesn't exist."""
         response = client.post("/api/v1/security/ev_nonexistent/analyze")
         assert response.status_code == 404
         data = response.json()
-        assert data["success"] is False
-        assert "EVIDENCE_NOT_FOUND" in str(data)
+        # FastAPI HTTPException returns {"detail": {...}} format
+        assert "detail" in data
+        assert data["detail"]["code"] == "EVIDENCE_NOT_FOUND"
 
     def test_findings_endpoint_structure(self, client, test_db):
         """Test findings endpoint returns proper structure."""
@@ -742,15 +748,16 @@ class TestSecurityApiEndpoints:
         )
         from datetime import datetime, timezone
 
-        case = Case(name="Test Case")
+        case = Case(case_name="Test Case")
         test_db.add(case)
         test_db.commit()
 
         evidence = PcapEvidence(
             case_id=case.case_id,
-            filename="test.pcap",
-            file_size=1000,
-            sha256_hash="abc123",
+            original_filename="test.pcap",
+            stored_filename="test_stored.pcap",
+            file_size_bytes=1000,
+            sha256="abc123def456789012345678901234567890123456789012345678901234",
             storage_location="/tmp/test.pcap",
         )
         test_db.add(evidence)
@@ -849,9 +856,9 @@ class TestPhase3Integration:
         # HTTP traffic packets (not email)
         packets = [
             PacketRecord(
-                frame_number=1, src_ip="10.0.0.1", dst_ip="10.0.0.2",
-                src_port=12345, dst_port=80, protocol="HTTP",
-                stream_id=0, tcp_flags=0, tcp_seq=0, tcp_ack=0
+                packet_number=1, src_ip="10.0.0.1", dst_ip="10.0.0.2",
+                src_port=12345, dst_port=80, detected_protocol="HTTP",
+                tcp_stream=0, tcp_flags="0x000"
             )
         ]
 

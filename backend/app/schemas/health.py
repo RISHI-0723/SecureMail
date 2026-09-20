@@ -15,7 +15,7 @@ class HealthResponse(BaseModel):
         description="Service name"
     )
     version: str = Field(
-        default="0.2.0-phase1",
+        default="0.3.0-phase3",
         description="Application version"
     )
 
@@ -44,7 +44,7 @@ class DependenciesHealthResponse(BaseModel):
         description="Service name"
     )
     version: str = Field(
-        default="0.2.0-phase1",
+        default="0.3.0-phase3",
         description="Application version"
     )
     dependencies: list[DependencyStatus] = Field(

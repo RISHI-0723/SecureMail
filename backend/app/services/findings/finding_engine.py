@@ -126,13 +126,13 @@ class FindingEngine:
         """Analyze single email session for findings."""
         session_data = {
             "transport_security": session.transport_security.value,
-            "starttls_advertised": session.starttls_advertised,
-            "starttls_requested": session.starttls_state in [
+            "starttls_advertised": session.starttls.advertised,
+            "starttls_requested": session.starttls.state in [
                 StarttlsState.REQUESTED,
-                StarttlsState.SUCCEEDED,
+                StarttlsState.TLS_STARTED,
                 StarttlsState.FAILED
             ],
-            "starttls_failed": session.starttls_state == StarttlsState.FAILED,
+            "starttls_failed": session.starttls.state == StarttlsState.FAILED,
         }
 
         matches = self.rules_engine.evaluate_protocol_security(
@@ -222,7 +222,7 @@ class FindingEngine:
         # Forward secrecy
         if obs.key_exchange:
             matches = self.rules_engine.evaluate_forward_secrecy(
-                obs.has_forward_secrecy,
+                obs.forward_secrecy,
                 obs.key_exchange,
                 obs.stream_id
             )

@@ -11,7 +11,15 @@
       "Bash(npx tsc:*)",
       "Bash(npm run build:*)",
       "Bash(docker compose exec:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(docker:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 2 complete - packet analysis and email protocol detection, all 97 tests passing\n\nImplements TShark-based packet extraction and email protocol detection:\n- TShark service with binary validation, timeout handling, and fail-fast behavior\n- SMTP, IMAP, POP3, and TLS presence detection via TShark dissector\n- Non-standard port detection \\(protocol-based, not port-based\\)\n- Celery analysis task with proper retry policy \\(DB errors only, max 2, 10s backoff\\)\n- Worker crash recovery \\(RUNNING jobs marked FAILED on restart\\)\n- API endpoints: trigger analysis, get summary, get protocols\n- Phase 2 migration for packet_analyses table and TIMEOUT job status\n\nPhase boundaries maintained:\n- No TCP stream reconstruction \\(Phase 3\\)\n- No STARTTLS analysis \\(Phase 4\\)\n- No TLS security analysis \\(Phase 5/6\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(findstr:*)",
+      "Bash(where:*)",
+      "Bash(tshark:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nPhase 3 complete - security intelligence engine with deterministic analysis\n\nImplements Phase 3 Security Intelligence Engine:\n- TCP stream reconstruction with integrity classification\n- Email security state machines \\(SMTP/IMAP/POP3 STARTTLS/STLS\\)\n- TLS handshake intelligence \\(version, cipher, forward secrecy\\)\n- X.509 certificate analysis\n- Centralized crypto policy \\(v1.0.0\\) and rules engine\n- Evidence-backed finding generation with deduplication\n- Deterministic risk assessment with documented formula\n- SecurityAnalysis database model and migration\n- Separate Celery task \\(run_security_analysis\\)\n- Complete API endpoints for security analysis\n- 50+ comprehensive tests including boundary enforcement\n\nBoundary enforcement verified:\n- NO TShark calls \\(consumes Phase 2 data\\)\n- NO ML inference \\(deterministic rules only\\)\n- NO PDF generation\n- NO blockchain\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(pip install:*)"
     ]
   }
 }
