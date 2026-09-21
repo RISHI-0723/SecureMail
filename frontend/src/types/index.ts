@@ -11,7 +11,7 @@ export interface HealthResponse {
 
 export interface DependencyStatus {
   name: string;
-  status: 'healthy' | 'unhealthy' | 'unknown';
+  status: 'healthy' | 'degraded' | 'unhealthy' | 'unknown';
   message?: string;
 }
 
@@ -187,7 +187,10 @@ export interface UserInfo {
   email: string;
   full_name: string | null;
   role: 'ADMIN' | 'ANALYST' | 'VIEWER';
+  status?: string;
   permissions: string[];
+  last_login?: string;
+  created_at?: string;
 }
 
 export interface AuthState {

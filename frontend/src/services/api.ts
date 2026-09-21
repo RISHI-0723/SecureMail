@@ -202,6 +202,38 @@ export const api = {
     return response;
   },
 
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return fetchApi<{ message: string }>('/api/v1/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+  },
+
+  // User management endpoints (Admin only)
+  async listUsers(): Promise<{ users: UserInfo[]; total: number }> {
+    return fetchApi<{ users: UserInfo[]; total: number }>('/api/v1/auth/users');
+  },
+
+  async createUser(userData: { username: string; email: string; password: string; full_name?: string; role?: string }): Promise<UserInfo> {
+    return fetchApi<UserInfo>('/api/v1/auth/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  },
+
+  async updateUser(userId: string, userData: { email?: string; full_name?: string; role?: string; status?: string }): Promise<UserInfo> {
+    return fetchApi<UserInfo>(`/api/v1/auth/users/${userId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+    });
+  },
+
+  async deleteUser(userId: string): Promise<{ deleted: boolean; user_id: string }> {
+    return fetchApi<{ deleted: boolean; user_id: string }>(`/api/v1/auth/users/${userId}`, {
+      method: 'DELETE',
+    });
+  },
+
   // Health endpoints
   async checkHealth(): Promise<HealthResponse> {
     return fetchApi<HealthResponse>('/api/v1/health', undefined, false);
@@ -336,6 +368,13 @@ export const api = {
 
   async getReports(evidenceId: string): Promise<{ reports: ReportInfo[]; total: number }> {
     return fetchApi<{ reports: ReportInfo[]; total: number }>(`/api/v1/evidence/${evidenceId}/reports`);
+  },
+
+  async generateReport(caseId: string, format: 'json' | 'html' | 'pdf'): Promise<{ report_id: string; download_url: string; format: string }> {
+    return fetchApi<{ report_id: string; download_url: string; format: string }>(`/api/v1/cases/${caseId}/report`, {
+      method: 'POST',
+      body: JSON.stringify({ format }),
+    });
   },
 
   async getIntegrity(evidenceId: string): Promise<EvidenceIntegrity> {
