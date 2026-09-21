@@ -17,6 +17,13 @@ from app.models import (
     AnalysisJob, JobStatus, JobType,
     PacketAnalysis,
     SecurityAnalysis, SecurityAnalysisStatus,
+    # Phase 4 models
+    IntelligenceReport, IntelligenceStatus,
+    Correlation, CorrelationType,
+    Recommendation, RecommendationPriority, RecommendationCategory,
+    MLPrediction,
+    GeneratedReport, ReportFormat, ReportStatus,
+    EvidenceIntegrity, IntegrityStatus,
 )
 
 

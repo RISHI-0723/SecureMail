@@ -7,6 +7,21 @@ from app.models.evidence import PcapEvidence, EvidenceStatus, FileFormat
 from app.models.analysis_job import AnalysisJob, JobStatus, JobType
 from app.models.packet_analysis import PacketAnalysis
 from app.models.security_analysis import SecurityAnalysis, SecurityAnalysisStatus
+from app.models.intelligence import (
+    IntelligenceReport,
+    IntelligenceStatus,
+    Correlation,
+    CorrelationType,
+    Recommendation,
+    RecommendationPriority,
+    RecommendationCategory,
+    MLPrediction,
+    GeneratedReport,
+    ReportFormat,
+    ReportStatus,
+    EvidenceIntegrity,
+    IntegrityStatus,
+)
 
 __all__ = [
     "Base",
@@ -21,4 +36,18 @@ __all__ = [
     "PacketAnalysis",
     "SecurityAnalysis",
     "SecurityAnalysisStatus",
+    # Phase 4
+    "IntelligenceReport",
+    "IntelligenceStatus",
+    "Correlation",
+    "CorrelationType",
+    "Recommendation",
+    "RecommendationPriority",
+    "RecommendationCategory",
+    "MLPrediction",
+    "GeneratedReport",
+    "ReportFormat",
+    "ReportStatus",
+    "EvidenceIntegrity",
+    "IntegrityStatus",
 ]
