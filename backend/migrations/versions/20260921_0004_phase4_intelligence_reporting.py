@@ -17,6 +17,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -129,8 +130,8 @@ def upgrade() -> None:
                   nullable=False),
 
         # Status
-        sa.Column('status', sa.Enum('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'PARTIAL',
-                                     name='intelligencestatus'),
+        sa.Column('status', postgresql.ENUM('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'PARTIAL',
+                                             name='intelligencestatus', create_type=False),
                   nullable=False, server_default='QUEUED'),
 
         # Timestamps
@@ -184,10 +185,10 @@ def upgrade() -> None:
                   nullable=False),
 
         # Type and strength
-        sa.Column('correlation_type', sa.Enum(
+        sa.Column('correlation_type', postgresql.ENUM(
             'SAME_CERTIFICATE', 'SAME_CIPHER_WEAKNESS', 'SAME_TLS_VERSION',
             'SAME_KEY_EXCHANGE', 'SAME_SERVER', 'TEMPORAL_PATTERN', 'RISK_ESCALATION',
-            name='correlationtype'),
+            name='correlationtype', create_type=False),
             nullable=False),
         sa.Column('strength', sa.Float(), nullable=False, server_default='1.0'),
         sa.Column('confidence', sa.String(20), nullable=False, server_default='MEDIUM'),
@@ -224,14 +225,14 @@ def upgrade() -> None:
                   nullable=False),
 
         # Priority and category
-        sa.Column('priority', sa.Enum(
+        sa.Column('priority', postgresql.ENUM(
             'CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO',
-            name='recommendationpriority'),
+            name='recommendationpriority', create_type=False),
             nullable=False, server_default='MEDIUM'),
-        sa.Column('category', sa.Enum(
+        sa.Column('category', postgresql.ENUM(
             'TLS_UPGRADE', 'CIPHER_UPGRADE', 'CERTIFICATE_RENEWAL',
             'KEY_ROTATION', 'CONFIGURATION', 'MONITORING', 'COMPLIANCE',
-            name='recommendationcategory'),
+            name='recommendationcategory', create_type=False),
             nullable=False),
 
         # Description
@@ -311,10 +312,10 @@ def upgrade() -> None:
                   nullable=False),
 
         # Format and status
-        sa.Column('format', sa.Enum('JSON', 'HTML', 'PDF', name='reportformat'),
+        sa.Column('format', postgresql.ENUM('JSON', 'HTML', 'PDF', name='reportformat', create_type=False),
                   nullable=False),
-        sa.Column('status', sa.Enum('QUEUED', 'GENERATING', 'COMPLETED', 'FAILED',
-                                     name='reportstatus'),
+        sa.Column('status', postgresql.ENUM('QUEUED', 'GENERATING', 'COMPLETED', 'FAILED',
+                                             name='reportstatus', create_type=False),
                   nullable=False, server_default='QUEUED'),
 
         # File info
@@ -349,8 +350,8 @@ def upgrade() -> None:
                   nullable=True),
 
         # Status
-        sa.Column('status', sa.Enum('PENDING', 'VERIFIED', 'FAILED', 'ANCHORED',
-                                     name='integritystatus'),
+        sa.Column('status', postgresql.ENUM('PENDING', 'VERIFIED', 'FAILED', 'ANCHORED',
+                                             name='integritystatus', create_type=False),
                   nullable=False, server_default='PENDING'),
 
         # Hashes

@@ -11,6 +11,7 @@ Creates:
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 from datetime import datetime, timezone
 
 
@@ -47,8 +48,8 @@ def upgrade() -> None:
         sa.Column('username', sa.String(50), unique=True, nullable=False, index=True),
         sa.Column('email', sa.String(255), unique=True, nullable=False, index=True),
         sa.Column('password_hash', sa.String(255), nullable=False),
-        sa.Column('role', sa.Enum('ADMIN', 'ANALYST', 'VIEWER', name='userrole', create_type=False), nullable=False, default='VIEWER'),
-        sa.Column('status', sa.Enum('ACTIVE', 'INACTIVE', 'LOCKED', name='userstatus', create_type=False), nullable=False, default='ACTIVE', index=True),
+        sa.Column('role', postgresql.ENUM('ADMIN', 'ANALYST', 'VIEWER', name='userrole', create_type=False), nullable=False, default='VIEWER'),
+        sa.Column('status', postgresql.ENUM('ACTIVE', 'INACTIVE', 'LOCKED', name='userstatus', create_type=False), nullable=False, default='ACTIVE', index=True),
         sa.Column('full_name', sa.String(255), nullable=True),
         sa.Column('failed_login_attempts', sa.String(10), nullable=False, default='0'),
         sa.Column('last_login', sa.DateTime(timezone=True), nullable=True),
