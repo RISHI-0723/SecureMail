@@ -85,7 +85,7 @@ export interface EvidenceListResponse {
 }
 
 // Analysis job types
-export type JobStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'PARTIAL' | 'CANCELLED';
+export type JobStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'PARTIAL' | 'CANCELLED' | 'TIMEOUT';
 export type JobType = 'FULL_ANALYSIS' | 'PROTOCOL_DETECTION' | 'TLS_ANALYSIS' | 'CERTIFICATE_ANALYSIS';
 
 export interface AnalysisJob {
@@ -105,6 +105,48 @@ export interface AnalysisJob {
 export interface AnalysisJobListResponse {
   jobs: AnalysisJob[];
   total: number;
+}
+
+// Phase 2: Packet Analysis Summary
+export interface ProtocolDetection {
+  protocol: string;
+  port: number;
+  confidence: string;
+  packet_count: number;
+  source_ip: string;
+  destination_ip: string;
+}
+
+export interface SessionCandidate {
+  session_id: string;
+  protocol: string;
+  client_ip: string;
+  client_port: number;
+  server_ip: string;
+  server_port: number;
+  packet_count: number;
+  tls_detected: boolean;
+}
+
+export interface PacketAnalysisSummary {
+  analysis_id: string;
+  job_id: string;
+  evidence_id: string;
+  status: JobStatus;
+  tshark_version: string | null;
+  analysis_timestamp: string;
+  duration_seconds: number | null;
+  total_packets: number;
+  email_packets: number;
+  smtp_packets: number;
+  imap_packets: number;
+  pop3_packets: number;
+  tls_packets: number;
+  other_packets: number;
+  protocols_detected: string[];
+  protocol_detections: ProtocolDetection[];
+  session_candidates: SessionCandidate[];
+  message: string | null;
 }
 
 // API response wrapper

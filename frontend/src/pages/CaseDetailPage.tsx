@@ -14,9 +14,13 @@ import {
   Loader,
   Trash2,
   FileSearch,
+  Activity,
+  Package,
+  Shield,
+  Play,
 } from 'lucide-react';
 import { api, ApiError } from '@/services/api';
-import type { CaseWithEvidenceCount, Evidence, UploadState } from '@/types';
+import type { CaseWithEvidenceCount, Evidence, UploadState, AnalysisJob, PacketAnalysisSummary } from '@/types';
 import { StatusBadge } from '@/components/StatusBadge';
 
 interface CaseDetailPageProps {
@@ -32,6 +36,12 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
   const [uploadState, setUploadState] = useState<UploadState>({ status: 'idle', progress: 0 });
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Analysis state - Phase 2 integration
+  const [analysisJobs, setAnalysisJobs] = useState<Record<string, AnalysisJob>>({});
+  const [analysisSummaries, setAnalysisSummaries] = useState<Record<string, PacketAnalysisSummary>>({});
+  const [pollingActive, setPollingActive] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -54,9 +64,70 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
     }
   }, [caseId]);
 
+  // Load analysis jobs for all evidence
+  const loadAnalysisData = useCallback(async (evidenceList: Evidence[]) => {
+    const jobs: Record<string, AnalysisJob> = {};
+    const summaries: Record<string, PacketAnalysisSummary> = {};
+    let hasActiveJobs = false;
+
+    for (const ev of evidenceList) {
+      try {
+        const jobsResponse = await api.getEvidenceAnalysisJobs(ev.evidence_id);
+        if (jobsResponse.jobs.length > 0) {
+          const latestJob = jobsResponse.jobs[0]; // Most recent job
+          jobs[ev.evidence_id] = latestJob;
+
+          // If job is completed, fetch the summary
+          if (latestJob.status === 'COMPLETED') {
+            try {
+              const summary = await api.getAnalysisSummary(latestJob.job_id);
+              summaries[ev.evidence_id] = summary;
+            } catch {
+              // Summary might not exist yet
+            }
+          }
+
+          // Check if we need to poll
+          if (latestJob.status === 'QUEUED' || latestJob.status === 'RUNNING') {
+            hasActiveJobs = true;
+          }
+        }
+      } catch {
+        // Ignore errors for individual evidence
+      }
+    }
+
+    setAnalysisJobs(jobs);
+    setAnalysisSummaries(summaries);
+    setPollingActive(hasActiveJobs);
+  }, []);
+
+  // Poll for analysis updates
+  useEffect(() => {
+    if (pollingActive && evidence.length > 0) {
+      pollingRef.current = setInterval(async () => {
+        await loadAnalysisData(evidence);
+      }, 3000); // Poll every 3 seconds
+    }
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [pollingActive, evidence, loadAnalysisData]);
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load analysis data when evidence changes
+  useEffect(() => {
+    if (evidence.length > 0) {
+      loadAnalysisData(evidence);
+    }
+  }, [evidence, loadAnalysisData]);
 
   const handleUpload = async (file: File) => {
     setUploadState({ status: 'uploading', progress: 0 });
@@ -120,6 +191,43 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
         setError('Failed to delete evidence');
       }
     }
+  };
+
+  const handleTriggerAnalysis = async (evidenceId: string) => {
+    try {
+      await api.triggerAnalysis(evidenceId);
+      // Reload analysis data
+      await loadAnalysisData(evidence);
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else {
+        setError('Failed to trigger analysis');
+      }
+    }
+  };
+
+  const getAnalysisStatusColor = (status: string): 'healthy' | 'loading' | 'error' | 'unknown' => {
+    switch (status) {
+      case 'COMPLETED':
+        return 'healthy';
+      case 'QUEUED':
+      case 'RUNNING':
+        return 'loading';
+      case 'FAILED':
+      case 'TIMEOUT':
+        return 'error';
+      default:
+        return 'unknown';
+    }
+  };
+
+  const formatDuration = (seconds: number | null): string => {
+    if (seconds === null) return 'N/A';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs.toFixed(0)}s`;
   };
 
   const formatFileSize = (bytes: number) => {
@@ -361,63 +469,188 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
           </div>
         ) : (
           <div className="space-y-3">
-            {evidence.map((ev) => (
-              <div
-                key={ev.evidence_id}
-                className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors group"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-2">
-                      <FileText className="w-5 h-5 text-blue-400" />
-                      <span className="text-white font-medium truncate">{ev.original_filename}</span>
-                      <StatusBadge
-                        status={getStatusColor(ev.status) as 'healthy' | 'loading' | 'error' | 'unknown'}
-                        text={ev.status}
-                      />
+            {evidence.map((ev) => {
+              const job = analysisJobs[ev.evidence_id];
+
+              return (
+                <div
+                  key={ev.evidence_id}
+                  className="bg-white/5 rounded-lg p-4 hover:bg-white/10 transition-colors group"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FileText className="w-5 h-5 text-blue-400" />
+                        <span className="text-white font-medium truncate">{ev.original_filename}</span>
+                        <StatusBadge
+                          status={getStatusColor(ev.status) as 'healthy' | 'loading' | 'error' | 'unknown'}
+                          text={ev.status}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-blue-200">
+                        <div className="flex items-center gap-1">
+                          <HardDrive className="w-3 h-3" />
+                          <span>{formatFileSize(ev.file_size_bytes)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-blue-400">{ev.file_format.toUpperCase()}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          <span>{formatDate(ev.upload_timestamp)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 font-mono text-xs">
+                          <Hash className="w-3 h-3" />
+                          <span title={ev.sha256}>{ev.sha256.substring(0, 16)}...</span>
+                        </div>
+                      </div>
+
+                      {/* Analysis Status */}
+                      {job && (
+                        <div className="mt-3 pt-3 border-t border-white/10">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Activity className="w-4 h-4 text-blue-400" />
+                            <span className="text-blue-200 text-sm">Analysis:</span>
+                            <StatusBadge
+                              status={getAnalysisStatusColor(job.status)}
+                              text={job.status}
+                            />
+                            {job.status === 'RUNNING' && job.stage && (
+                              <span className="text-blue-300 text-xs">({job.stage})</span>
+                            )}
+                            {job.status === 'QUEUED' && (
+                              <button
+                                onClick={() => handleTriggerAnalysis(ev.evidence_id)}
+                                className="ml-2 flex items-center gap-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
+                              >
+                                <Play className="w-3 h-3" />
+                                Start
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {ev.error_message && (
+                        <p className="text-red-300 text-sm mt-2">{ev.error_message}</p>
+                      )}
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm text-blue-200">
-                      <div className="flex items-center gap-1">
-                        <HardDrive className="w-3 h-3" />
-                        <span>{formatFileSize(ev.file_size_bytes)}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-blue-400">{ev.file_format.toUpperCase()}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        <span>{formatDate(ev.upload_timestamp)}</span>
-                      </div>
-                      <div className="flex items-center gap-1 font-mono text-xs">
-                        <Hash className="w-3 h-3" />
-                        <span title={ev.sha256}>{ev.sha256.substring(0, 16)}...</span>
-                      </div>
-                    </div>
-                    {ev.error_message && (
-                      <p className="text-red-300 text-sm mt-2">{ev.error_message}</p>
-                    )}
+                    <button
+                      onClick={() => handleDeleteEvidence(ev.evidence_id)}
+                      className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                      title="Delete evidence"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => handleDeleteEvidence(ev.evidence_id)}
-                    className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete evidence"
-                  >
-                    <Trash2 className="w-5 h-5" />
-                  </button>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {/* Phase 1 Note */}
-      <div className="bg-amber-500/10 border border-amber-400/50 rounded-lg p-4">
-        <p className="text-amber-200 text-sm">
-          <strong>Phase 1 Note:</strong> Evidence is validated and stored. Full packet analysis
-          (protocol detection, TLS inspection, certificate analysis) will be available in Phase 2.
-        </p>
-      </div>
+      {/* Phase 2: Packet Analysis Results */}
+      {Object.keys(analysisSummaries).length > 0 && (
+        <div className="bg-white/10 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Package className="w-5 h-5 text-green-400" />
+            Packet Analysis Results
+          </h2>
+
+          {Object.entries(analysisSummaries).map(([evidenceId, summary]) => {
+            const ev = evidence.find(e => e.evidence_id === evidenceId);
+            return (
+              <div key={evidenceId} className="bg-white/5 rounded-lg p-4 mb-4 last:mb-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  <span className="text-white font-medium">{ev?.original_filename || 'Unknown'}</span>
+                  <span className="text-green-300 text-sm">Analysis Completed</span>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Total Packets</p>
+                    <p className="text-white text-xl font-semibold">{summary.total_packets.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Email Packets</p>
+                    <p className="text-white text-xl font-semibold">{summary.email_packets.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">TLS Packets</p>
+                    <p className="text-white text-xl font-semibold">{summary.tls_packets.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Processing Time</p>
+                    <p className="text-white text-xl font-semibold">{formatDuration(summary.duration_seconds)}</p>
+                  </div>
+                </div>
+
+                {/* Protocol breakdown */}
+                <div className="grid grid-cols-3 gap-2 mb-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    <span className="text-blue-200">SMTP: {summary.smtp_packets.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    <span className="text-blue-200">IMAP: {summary.imap_packets.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Shield className="w-4 h-4 text-blue-400" />
+                    <span className="text-blue-200">POP3: {summary.pop3_packets.toLocaleString()}</span>
+                  </div>
+                </div>
+
+                {/* Protocols detected or no email message */}
+                {summary.protocols_detected.length > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-blue-200 text-sm">Protocols Detected:</span>
+                    {summary.protocols_detected.map(proto => (
+                      <span key={proto} className="bg-green-500/20 text-green-300 px-2 py-1 rounded text-xs">
+                        {proto}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-amber-500/10 border border-amber-400/30 rounded p-3">
+                    <p className="text-amber-200 text-sm">
+                      {summary.message || 'No SMTP, IMAP, or POP3 traffic was detected in this capture.'}
+                    </p>
+                  </div>
+                )}
+
+                {/* TShark version */}
+                {summary.tshark_version && (
+                  <p className="text-blue-300 text-xs mt-3">
+                    Analyzed with TShark {summary.tshark_version}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Analysis in progress indicator */}
+      {pollingActive && (
+        <div className="bg-blue-500/10 border border-blue-400/50 rounded-lg p-4 flex items-center gap-3">
+          <Loader className="w-5 h-5 text-blue-400 animate-spin" />
+          <p className="text-blue-200 text-sm">
+            Analysis in progress... This page will update automatically when complete.
+          </p>
+        </div>
+      )}
+
+      {/* Show Phase 1 note ONLY when no analysis jobs exist */}
+      {evidence.length > 0 && Object.keys(analysisJobs).length === 0 && !loading && (
+        <div className="bg-amber-500/10 border border-amber-400/50 rounded-lg p-4">
+          <p className="text-amber-200 text-sm">
+            <strong>Note:</strong> Evidence is validated and stored. Analysis will begin automatically.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

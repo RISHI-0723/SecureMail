@@ -12,6 +12,7 @@ import type {
   EvidenceUploadResponse,
   AnalysisJob,
   AnalysisJobListResponse,
+  PacketAnalysisSummary,
   LoginRequest,
   TokenResponse,
   UserInfo,
@@ -242,6 +243,10 @@ export const api = {
     return fetchApi<AnalysisJob>(`/api/v1/analysis/${jobId}`);
   },
 
+  async getAnalysisSummary(jobId: string): Promise<PacketAnalysisSummary> {
+    return fetchApi<PacketAnalysisSummary>(`/api/v1/analysis/${jobId}/summary`);
+  },
+
   async getEvidenceAnalysisJobs(evidenceId: string): Promise<AnalysisJobListResponse> {
     return fetchApi<AnalysisJobListResponse>(`/api/v1/evidence/${evidenceId}/analysis`);
   },
@@ -249,5 +254,12 @@ export const api = {
   async listAnalysisJobs(statusFilter?: string): Promise<AnalysisJobListResponse> {
     const params = statusFilter ? `?status_filter=${statusFilter}` : '';
     return fetchApi<AnalysisJobListResponse>(`/api/v1/analysis${params}`);
+  },
+
+  async triggerAnalysis(evidenceId: string): Promise<{ job_id: string; status: string; message: string }> {
+    return fetchApi<{ job_id: string; status: string; message: string }>(
+      `/api/v1/evidence/${evidenceId}/analyze`,
+      { method: 'POST' }
+    );
   },
 };
