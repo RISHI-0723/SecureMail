@@ -34,10 +34,8 @@ services:
           property: connectionString
       - key: SECRET_KEY
         generateValue: true
-        sync: false
       - key: ADMIN_PASSWORD
         generateValue: true
-        sync: false
       - key: CORS_ORIGINS
         value: https://securemailscope-frontend.onrender.com
       - key: MAX_PCAP_SIZE_MB
@@ -64,7 +62,6 @@ services:
         sync: false
       - key: S3_BUCKET_NAME
         value: securemailscope-evidence
-        sync: false
       - key: S3_REGION
         value: ap-southeast-2
     preDeployCommand: alembic upgrade head
@@ -79,7 +76,7 @@ services:
     region: singapore
     dockerfilePath: ./backend/Dockerfile.production
     dockerContext: ./backend
-    startCommand: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
+    dockerCommand: celery -A app.core.celery_app worker --loglevel=info --concurrency=4
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -100,7 +97,7 @@ services:
           name: securemailscope-api
           envVarKey: SECRET_KEY
       - key: MAX_PCAP_SIZE_MB
-        value: 500
+        value: 50
       - key: ML_ENABLED
         value: true
       - key: LOG_LEVEL
@@ -146,7 +143,6 @@ services:
     name: securemailscope-frontend
     runtime: static
     plan: starter
-    region: singapore
     buildCommand: cd frontend && npm ci && npm run build
     staticPublishPath: ./frontend/dist
     pullRequestPreviewsEnabled: false
