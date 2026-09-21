@@ -41,7 +41,7 @@ services:
       - key: CORS_ORIGINS
         value: https://securemailscope-frontend.onrender.com
       - key: MAX_PCAP_SIZE_MB
-        value: 500
+        value: 50
       - key: ML_ENABLED
         value: true
       - key: BLOCKCHAIN_ENABLED
@@ -57,15 +57,16 @@ services:
       - key: STORAGE_BACKEND
         value: s3
       - key: S3_ENDPOINT_URL
-        sync: false
+        value: https://aqdzsopxuheuunpifjks.storage.supabase.co/storage/v1/s3
       - key: S3_ACCESS_KEY_ID
         sync: false
       - key: S3_SECRET_ACCESS_KEY
         sync: false
       - key: S3_BUCKET_NAME
+        value: securemailscope-evidence
         sync: false
       - key: S3_REGION
-        value: us-east-1
+        value: ap-southeast-2
     preDeployCommand: alembic upgrade head
 
   # ===========================================================================

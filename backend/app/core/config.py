@@ -64,7 +64,7 @@ class Settings(BaseSettings):
         return self.celery_result_backend or self.redis_url
 
     # PCAP Processing
-    max_pcap_size_mb: int = 500
+    max_pcap_size_mb: int = 50
 
     # Evidence Storage
     evidence_storage_path: str = "/app/data/evidence"
