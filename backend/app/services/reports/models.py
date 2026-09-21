@@ -44,7 +44,7 @@ class ReportMetadata(BaseModel):
 
     # Generator info
     generator: str = "SecureMailScope"
-    generator_version: str = "0.4.0-phase4"
+    generator_version: str = "0.5.0"
 
 
 class EvidenceSection(BaseModel):

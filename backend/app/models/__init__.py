@@ -22,6 +22,8 @@ from app.models.intelligence import (
     EvidenceIntegrity,
     IntegrityStatus,
 )
+# Phase 5 - Authentication
+from app.models.user import User, UserRole, UserStatus, AuditLog
 
 __all__ = [
     "Base",
@@ -50,4 +52,9 @@ __all__ = [
     "ReportStatus",
     "EvidenceIntegrity",
     "IntegrityStatus",
+    # Phase 5 - Authentication
+    "User",
+    "UserRole",
+    "UserStatus",
+    "AuditLog",
 ]

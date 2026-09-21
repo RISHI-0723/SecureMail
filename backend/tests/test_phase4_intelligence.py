@@ -717,7 +717,7 @@ class TestReportGenerator:
 
         assert "metadata" in report_data
         assert "generator_version" in report_data["metadata"]
-        assert "0.4.0" in report_data["metadata"]["generator_version"]
+        assert "0.5.0" in report_data["metadata"]["generator_version"]
 
 
 # ============================================================
@@ -968,18 +968,18 @@ class TestIntelligenceAPISchemas:
 class TestVersion:
     """Tests for version consistency."""
 
-    def test_version_is_phase4(self):
-        """Test that version is 0.4.0-phase4."""
+    def test_version_is_phase5(self):
+        """Test that version is 0.5.0."""
         from app.main import APP_VERSION
-        assert APP_VERSION == "0.4.0-phase4"
+        assert APP_VERSION == "0.5.0"
 
-    def test_health_version_is_phase4(self):
-        """Test that health endpoint returns phase4 version."""
+    def test_health_version_is_phase5(self):
+        """Test that health endpoint returns phase5 version."""
         from app.api.routes.health import APP_VERSION
-        assert APP_VERSION == "0.4.0-phase4"
+        assert APP_VERSION == "0.5.0"
 
     def test_report_generator_version(self):
-        """Test that report generator uses phase4 version."""
+        """Test that report generator uses phase5 version."""
         from app.services.reports.models import ReportMetadata
         metadata = ReportMetadata(
             title="Test Report",
@@ -987,4 +987,4 @@ class TestVersion:
             job_id="job_001",
             format=ReportFormat.JSON,
         )
-        assert "0.4.0" in metadata.generator_version
+        assert "0.5.0" in metadata.generator_version

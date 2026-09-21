@@ -24,6 +24,8 @@ from app.models import (
     MLPrediction,
     GeneratedReport, ReportFormat, ReportStatus,
     EvidenceIntegrity, IntegrityStatus,
+    # Phase 5 models
+    User, UserRole, UserStatus, AuditLog,
 )
 
 

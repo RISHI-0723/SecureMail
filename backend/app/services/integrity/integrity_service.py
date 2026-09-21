@@ -416,7 +416,7 @@ class IntegrityService:
                 "evidence_sha256": record.evidence_sha256,
                 "analysis_hash": record.analysis_hash,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "version": "0.4.0-phase4",
+                "version": "0.5.0",
             }
 
             # Anchor the evidence hash
