@@ -2,7 +2,20 @@
 
 **Version:** 0.5.0 - SIH Production Ready
 **Target:** Render.com (Public HTTPS)
-**Status:** ✅ Ready to Deploy
+**Status:** ✅ Ready to Deploy (Infrastructure Blockers Fixed)
+
+---
+
+## 🔧 Infrastructure Fixes Applied
+
+**Critical blockers resolved (2026-09-21):**
+
+1. ✅ **Evidence Storage:** Implemented S3-compatible object storage (shared between backend/worker)
+2. ✅ **Redis Service:** Fixed configuration (moved from databases to services)
+3. ✅ **SECRET_KEY:** Synchronized between backend and worker
+4. ✅ **CORS:** Updated to correct frontend URL
+
+**See:** `docs/S3_STORAGE_SETUP.md` for S3 configuration details
 
 ---
 
@@ -13,14 +26,30 @@ All production validation completed:
 - ✅ Backend Docker build verified (TShark 4.4.18 included)
 - ✅ Frontend production build tested (251KB bundle, no errors)
 - ✅ Database migrations tested from zero (all 6 migrations pass)
-- ✅ Render Blueprint (`render.yaml`) created
+- ✅ S3 storage backend implemented and tested
+- ✅ Worker uses storage abstraction (supports both local and S3)
+- ✅ Render Blueprint (`render.yaml`) created and validated
 - ✅ Comprehensive deployment docs created
 
 ---
 
 ## ⚡ Quick Deployment Steps
 
-### 1. Push to GitHub/GitLab
+### 1. Set Up S3 Storage (REQUIRED)
+
+**Render persistent disks cannot be shared between services.** You MUST configure S3-compatible object storage.
+
+**Recommended:** Cloudflare R2 (10GB free tier)
+
+```
+1. Create Cloudflare R2 bucket: "securemailscope-evidence"
+2. Generate API token with Read & Write permissions
+3. Save: Access Key ID, Secret Access Key, Endpoint URL
+```
+
+**See:** `docs/S3_STORAGE_SETUP.md` for detailed setup instructions
+
+### 2. Push to GitHub/GitLab
 
 ```bash
 # If not already pushed
@@ -28,7 +57,7 @@ git remote add origin <your-repo-url>
 git push -u origin master
 ```
 
-### 2. Deploy to Render
+### 3. Deploy to Render
 
 1. **Go to Render Dashboard**
    - https://dashboard.render.com
@@ -58,7 +87,28 @@ git push -u origin master
    - Services will start deploying
    - Wait 5-10 minutes for first deployment
 
-### 3. Update CORS (IMPORTANT!)
+### 4. Configure S3 Storage (CRITICAL!)
+
+After services are created, configure S3 credentials:
+
+1. **Navigate to Backend API Service**
+   - Go to `securemailscope-api` → Environment
+
+2. **Set S3 Environment Variables**
+   ```
+   S3_ENDPOINT_URL=https://<account-id>.r2.cloudflarestorage.com
+   S3_ACCESS_KEY_ID=<your-access-key-id>
+   S3_SECRET_ACCESS_KEY=<your-secret-key>
+   S3_BUCKET_NAME=securemailscope-evidence
+   ```
+
+3. **Save Changes**
+   - Services will automatically redeploy
+   - Worker will sync S3 credentials from backend
+
+**Without S3 configuration, evidence upload will fail.**
+
+### 5. Update CORS (IMPORTANT!)
 
 After deployment completes:
 
@@ -71,13 +121,13 @@ After deployment completes:
    - Update `CORS_ORIGINS` to your actual frontend URL
    - Save (triggers redeploy)
 
-### 4. Get Admin Credentials
+### 6. Get Admin Credentials
 
 1. Navigate to Backend API service settings
 2. Find `ADMIN_PASSWORD` environment variable
 3. Copy the auto-generated password
 
-### 5. Test Deployment
+### 7. Test Deployment
 
 1. **Open Frontend**
    - Visit your frontend URL

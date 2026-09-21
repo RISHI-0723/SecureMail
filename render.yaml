@@ -39,7 +39,7 @@ services:
         generateValue: true
         sync: false
       - key: CORS_ORIGINS
-        value: https://securemailscope.onrender.com
+        value: https://securemailscope-frontend.onrender.com
       - key: MAX_PCAP_SIZE_MB
         value: 500
       - key: ML_ENABLED
@@ -54,11 +54,19 @@ services:
         value: /app/data/reports
       - key: TSHARK_TIMEOUT_SECONDS
         value: 300
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_ENDPOINT_URL
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      - key: S3_BUCKET_NAME
+        sync: false
+      - key: S3_REGION
+        value: us-east-1
     preDeployCommand: alembic upgrade head
-    disk:
-      name: securemailscope-data
-      mountPath: /app/data
-      sizeGB: 20
 
   # ===========================================================================
   # Celery Background Worker
@@ -86,7 +94,10 @@ services:
           name: securemailscope-redis
           property: connectionString
       - key: SECRET_KEY
-        sync: false
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: SECRET_KEY
       - key: MAX_PCAP_SIZE_MB
         value: 500
       - key: ML_ENABLED
@@ -99,10 +110,33 @@ services:
         value: /app/data/reports
       - key: TSHARK_TIMEOUT_SECONDS
         value: 300
-    disk:
-      name: securemailscope-worker-data
-      mountPath: /app/data
-      sizeGB: 20
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_ENDPOINT_URL
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: S3_ENDPOINT_URL
+      - key: S3_ACCESS_KEY_ID
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: S3_ACCESS_KEY_ID
+      - key: S3_SECRET_ACCESS_KEY
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: S3_SECRET_ACCESS_KEY
+      - key: S3_BUCKET_NAME
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: S3_BUCKET_NAME
+      - key: S3_REGION
+        fromService:
+          type: web
+          name: securemailscope-api
+          envVarKey: S3_REGION
 
   # ===========================================================================
   # Frontend - Static Site
@@ -139,6 +173,16 @@ services:
         source: /*
         destination: /index.html
 
+  # ===========================================================================
+  # Redis - Celery Broker and Result Backend
+  # ===========================================================================
+  - type: redis
+    name: securemailscope-redis
+    plan: standard
+    region: singapore
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
 databases:
   # ===========================================================================
   # PostgreSQL Database
@@ -146,14 +190,6 @@ databases:
   - name: securemailscope-postgres
     databaseName: securemailscope
     user: securemailscope
-    plan: standard
-    region: singapore
-    ipAllowList: []
-
-  # ===========================================================================
-  # Redis (for Celery broker and result backend)
-  # ===========================================================================
-  - name: securemailscope-redis
     plan: standard
     region: singapore
     ipAllowList: []

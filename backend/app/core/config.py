@@ -71,6 +71,16 @@ class Settings(BaseSettings):
     reports_storage_path: str = "/app/data/reports"
     allowed_pcap_extensions: str = ".pcap,.pcapng"
 
+    # Storage Backend (local or s3)
+    storage_backend: str = "local"  # "local" or "s3"
+
+    # S3-Compatible Object Storage (when storage_backend=s3)
+    s3_endpoint_url: str | None = None  # e.g., https://s3.amazonaws.com or R2 endpoint
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_bucket_name: str | None = None
+    s3_region: str = "us-east-1"
+
     @property
     def max_pcap_size_bytes(self) -> int:
         """Maximum PCAP size in bytes."""

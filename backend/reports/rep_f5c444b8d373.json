@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "report_id": "rep_f5c444b8d373",
+    "title": "Security Analysis Report - bfd-raw-auth-md5.pcap",
+    "generated_at": "2026-09-21T11:22:20.931777Z",
+    "evidence_id": "ev_e5c8c0cf12b0",
+    "job_id": "job_870eed8ea622",
+    "case_name": "Case2",
+    "format": "JSON",
+    "version": "1.0",
+    "generator": "SecureMailScope",
+    "generator_version": "0.5.0"
+  },
+  "executive_summary": "Security Posture: Grade A (Score: 100/100)\nNo security findings were identified in the analyzed evidence.\n\nAnalysis Coverage:\n  - Streams analyzed: 0\n  - Sessions analyzed: 0\n  - Certificates analyzed: 0",
+  "evidence": {
+    "evidence_id": "ev_e5c8c0cf12b0",
+    "original_filename": "bfd-raw-auth-md5.pcap",
+    "sha256": "54bbea4646c22750db2004d91d51665b5b4deb8a1cddb6c540a21fdf1b18f629",
+    "file_size_bytes": 3434,
+    "upload_timestamp": "2026-09-21T11:00:27.933127Z",
+    "packets_analyzed": 0,
+    "streams_analyzed": 0,
+    "sessions_analyzed": 0,
+    "certificates_analyzed": 0
+  },
+  "security_posture": {
+    "overall_score": 100.0,
+    "grade": "A",
+    "tls_security_score": 100.0,
+    "certificate_security_score": 100.0,
+    "protocol_security_score": 100.0,
+    "configuration_security_score": 100.0,
+    "risk_factors": [],
+    "strengths": [
+      "Tls Security: Score 100/100",
+      "Certificate Security: Score 100/100",
+      "Protocol Security: Score 100/100",
+      "Configuration Security: Score 100/100"
+    ]
+  },
+  "critical_findings": [],
+  "high_findings": [],
+  "medium_findings": [],
+  "low_findings": [],
+  "info_findings": [],
+  "recommendations": [],
+  "correlations": [],
+  "ml_insights": null,
+  "integrity": {
+    "evidence_sha256": "54bbea4646c22750db2004d91d51665b5b4deb8a1cddb6c540a21fdf1b18f629",
+    "evidence_sha512": null,
+    "analysis_hash": "01f296f963aee0d35b109873d16031d23781e6cd689540607cdaab630926efe7",
+    "report_hash": null,
+    "blockchain_anchored": false,
+    "transaction_hash": null,
+    "anchor_timestamp": null
+  },
+  "limitations": [
+    "No TCP streams were reconstructed from the evidence.",
+    "No email sessions were detected in the evidence.",
+    "ML-based anomaly detection was not performed."
+  ],
+  "notes": []
+}

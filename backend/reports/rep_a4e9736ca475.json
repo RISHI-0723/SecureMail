@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "report_id": "rep_a4e9736ca475",
+    "title": "Security Analysis Report - smtp_starttls_demo.pcap",
+    "generated_at": "2026-09-21T15:34:52.997122Z",
+    "evidence_id": "ev_ee0e77947b00",
+    "job_id": "job_06c6e3dcc068",
+    "case_name": "Synthetic SMTP Demo v2",
+    "format": "JSON",
+    "version": "1.0",
+    "generator": "SecureMailScope",
+    "generator_version": "0.5.0"
+  },
+  "executive_summary": "Security Posture: Grade A (Score: 100/100)\nNo security findings were identified in the analyzed evidence.\n\nAnalysis Coverage:\n  - Streams analyzed: 0\n  - Sessions analyzed: 0\n  - Certificates analyzed: 0",
+  "evidence": {
+    "evidence_id": "ev_ee0e77947b00",
+    "original_filename": "smtp_starttls_demo.pcap",
+    "sha256": "ec65ab1498836d471374ea924d90ac30f2a717c55dbda73f4b33d746e516f0c8",
+    "file_size_bytes": 3134,
+    "upload_timestamp": "2026-09-21T15:34:29.460218Z",
+    "packets_analyzed": 0,
+    "streams_analyzed": 0,
+    "sessions_analyzed": 0,
+    "certificates_analyzed": 0
+  },
+  "security_posture": {
+    "overall_score": 100.0,
+    "grade": "A",
+    "tls_security_score": 100.0,
+    "certificate_security_score": 100.0,
+    "protocol_security_score": 100.0,
+    "configuration_security_score": 100.0,
+    "risk_factors": [],
+    "strengths": [
+      "Tls Security: Score 100/100",
+      "Certificate Security: Score 100/100",
+      "Protocol Security: Score 100/100",
+      "Configuration Security: Score 100/100"
+    ]
+  },
+  "critical_findings": [],
+  "high_findings": [],
+  "medium_findings": [],
+  "low_findings": [],
+  "info_findings": [],
+  "recommendations": [],
+  "correlations": [],
+  "ml_insights": null,
+  "integrity": {
+    "evidence_sha256": "ec65ab1498836d471374ea924d90ac30f2a717c55dbda73f4b33d746e516f0c8",
+    "evidence_sha512": null,
+    "analysis_hash": "df6941589258df4a32f66dad582071a2323fc73f5e42ace947553defed518431",
+    "report_hash": null,
+    "blockchain_anchored": false,
+    "transaction_hash": null,
+    "anchor_timestamp": null
+  },
+  "limitations": [
+    "No TCP streams were reconstructed from the evidence.",
+    "No email sessions were detected in the evidence.",
+    "ML-based anomaly detection was not performed."
+  ],
+  "notes": []
+}

@@ -1,0 +1,90 @@
+{
+  "metadata": {
+    "report_id": "rep_a162f6ba5ffc",
+    "title": "Security Analysis Report - smtp_starttls_demo.pcap",
+    "generated_at": "2026-09-21T15:40:14.391119Z",
+    "evidence_id": "ev_f4ced0b113b3",
+    "job_id": "job_4aaad6d25aeb",
+    "case_name": "Synthetic SMTP Demo v3 - Fixed Parser",
+    "format": "JSON",
+    "version": "1.0",
+    "generator": "SecureMailScope",
+    "generator_version": "0.5.0"
+  },
+  "executive_summary": "Security Posture: Grade A (Score: 95/100)\nAnalysis identified 1 security finding(s):\n  - 1 HIGH\n\nKey Risk Factors:\n  - 1 high severity findings\n\nAnalysis Coverage:\n  - Streams analyzed: 2\n  - Sessions analyzed: 2\n  - Certificates analyzed: 0",
+  "evidence": {
+    "evidence_id": "ev_f4ced0b113b3",
+    "original_filename": "smtp_starttls_demo.pcap",
+    "sha256": "ec65ab1498836d471374ea924d90ac30f2a717c55dbda73f4b33d746e516f0c8",
+    "file_size_bytes": 3134,
+    "upload_timestamp": "2026-09-21T15:37:35.897590Z",
+    "packets_analyzed": 2,
+    "streams_analyzed": 2,
+    "sessions_analyzed": 2,
+    "certificates_analyzed": 0
+  },
+  "security_posture": {
+    "overall_score": 95.0,
+    "grade": "A",
+    "tls_security_score": 100.0,
+    "certificate_security_score": 100.0,
+    "protocol_security_score": 80.0,
+    "configuration_security_score": 100.0,
+    "risk_factors": [
+      "1 high severity findings"
+    ],
+    "strengths": [
+      "Tls Security: Score 100/100",
+      "Certificate Security: Score 100/100",
+      "Configuration Security: Score 100/100"
+    ]
+  },
+  "critical_findings": [],
+  "high_findings": [
+    {
+      "finding_id": "find_4d2f925a0d5b",
+      "rule_id": "PROTO-001",
+      "title": "Plaintext Email Session",
+      "description": "Email session transmitted without TLS encryption.",
+      "category": "PROTOCOL_SECURITY",
+      "severity": "HIGH",
+      "confidence": "HIGH",
+      "occurrence_count": 2,
+      "affected_sessions": 1,
+      "affected_certificates": 0,
+      "remediation": "Enable and require TLS for email communications."
+    }
+  ],
+  "medium_findings": [],
+  "low_findings": [],
+  "info_findings": [],
+  "recommendations": [
+    {
+      "recommendation_id": "rec_925eb47e9125",
+      "priority": "HIGH",
+      "category": "CONFIGURATION",
+      "title": "Remediate: Plaintext Email Session",
+      "description": "Email session transmitted without TLS encryption.\n\nThis issue was observed 2 times.\n\nAffects 1 session(s).",
+      "remediation_steps": [
+        "Enable and require TLS for email communications."
+      ],
+      "estimated_effort": "High",
+      "compliance_references": null
+    }
+  ],
+  "correlations": [],
+  "ml_insights": null,
+  "integrity": {
+    "evidence_sha256": "ec65ab1498836d471374ea924d90ac30f2a717c55dbda73f4b33d746e516f0c8",
+    "evidence_sha512": null,
+    "analysis_hash": "ff7746217d77ee9c45dd453eaee1c06268b3cf6de51338b88552c01ebf418ebe",
+    "report_hash": null,
+    "blockchain_anchored": false,
+    "transaction_hash": null,
+    "anchor_timestamp": null
+  },
+  "limitations": [
+    "ML-based anomaly detection was not performed."
+  ],
+  "notes": []
+}

@@ -20,6 +20,7 @@ from sqlalchemy.exc import OperationalError, InterfaceError
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
+from app.core.config import settings
 from app.models.analysis_job import AnalysisJob, JobStatus, JobType, generate_job_id
 from app.models.evidence import PcapEvidence
 from app.models.packet_analysis import PacketAnalysis
@@ -29,6 +30,7 @@ from app.services.packet import (
     PacketParser,
     ProtocolDetector,
 )
+from app.services.ingestion.storage import evidence_storage, StorageError
 
 logger = logging.getLogger(__name__)
 
@@ -149,10 +151,21 @@ def analyze_evidence(self, job_id: str) -> dict:
             _fail_job(db, job, "EVIDENCE_NOT_FOUND", f"Evidence not found: {job.evidence_id}")
             return {"status": "FAILED", "error_code": "EVIDENCE_NOT_FOUND"}
 
-        evidence_path = evidence.storage_location
-        if not evidence_path:
-            _fail_job(db, job, "EVIDENCE_NOT_FOUND", "Evidence storage location is missing")
-            return {"status": "FAILED", "error_code": "EVIDENCE_NOT_FOUND"}
+        # Get evidence path through storage abstraction
+        # This works for both local and S3 storage
+        # For S3, this downloads the file to a temp path
+        try:
+            storage_key = evidence.stored_filename
+            if not storage_key:
+                _fail_job(db, job, "EVIDENCE_NOT_FOUND", "Evidence storage key is missing")
+                return {"status": "FAILED", "error_code": "EVIDENCE_NOT_FOUND"}
+
+            evidence_path = str(evidence_storage.get_path(storage_key))
+            temp_file_cleanup = settings.storage_backend.lower() == "s3"  # Flag for cleanup
+        except StorageError as e:
+            logger.error(f"Failed to retrieve evidence: {e.message}")
+            _fail_job(db, job, e.code, e.message)
+            return {"status": "FAILED", "error_code": e.code}
 
         logger.info(
             f"Starting packet analysis for job {job_id}",
@@ -353,6 +366,18 @@ def analyze_evidence(self, job_id: str) -> dict:
         }
 
     finally:
+        # Clean up temporary file if using S3 storage
+        if 'temp_file_cleanup' in locals() and temp_file_cleanup and 'evidence_path' in locals():
+            try:
+                import os
+                from pathlib import Path
+                temp_path = Path(evidence_path)
+                if temp_path.exists():
+                    os.unlink(temp_path)
+                    logger.debug(f"Cleaned up temporary evidence file: {temp_path}")
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to clean up temporary file: {cleanup_error}")
+
         db.close()
 
 
