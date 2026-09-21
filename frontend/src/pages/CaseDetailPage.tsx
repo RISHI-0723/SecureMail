@@ -18,9 +18,24 @@ import {
   Package,
   Shield,
   Play,
+  Lock,
+  ShieldAlert,
+  TrendingUp,
+  Lightbulb,
+  Award,
 } from 'lucide-react';
 import { api, ApiError } from '@/services/api';
-import type { CaseWithEvidenceCount, Evidence, UploadState, AnalysisJob, PacketAnalysisSummary } from '@/types';
+import type {
+  CaseWithEvidenceCount,
+  Evidence,
+  UploadState,
+  AnalysisJob,
+  PacketAnalysisSummary,
+  SecurityAnalysisSummary,
+  SecurityFinding,
+  IntelligenceSummary,
+  Recommendation,
+} from '@/types';
 import { StatusBadge } from '@/components/StatusBadge';
 
 interface CaseDetailPageProps {
@@ -43,6 +58,14 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
   const [pollingActive, setPollingActive] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Phase 3: Security Analysis state
+  const [securitySummaries, setSecuritySummaries] = useState<Record<string, SecurityAnalysisSummary>>({});
+  const [securityFindings, setSecurityFindings] = useState<Record<string, SecurityFinding[]>>({});
+
+  // Phase 4: Intelligence Analysis state
+  const [intelligenceSummaries, setIntelligenceSummaries] = useState<Record<string, IntelligenceSummary>>({});
+  const [recommendations, setRecommendations] = useState<Record<string, Recommendation[]>>({});
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -64,10 +87,14 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
     }
   }, [caseId]);
 
-  // Load analysis jobs for all evidence
+  // Load analysis jobs for all evidence (Phase 2, 3, 4)
   const loadAnalysisData = useCallback(async (evidenceList: Evidence[]) => {
     const jobs: Record<string, AnalysisJob> = {};
     const summaries: Record<string, PacketAnalysisSummary> = {};
+    const secSummaries: Record<string, SecurityAnalysisSummary> = {};
+    const secFindings: Record<string, SecurityFinding[]> = {};
+    const intSummaries: Record<string, IntelligenceSummary> = {};
+    const recs: Record<string, Recommendation[]> = {};
     let hasActiveJobs = false;
 
     for (const ev of evidenceList) {
@@ -92,6 +119,38 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
             hasActiveJobs = true;
           }
         }
+
+        // Phase 3: Load security analysis
+        try {
+          const secSummary = await api.getSecuritySummary(ev.evidence_id);
+          secSummaries[ev.evidence_id] = secSummary;
+
+          // Load findings
+          try {
+            const findingsResp = await api.getSecurityFindings(ev.evidence_id);
+            secFindings[ev.evidence_id] = findingsResp.findings;
+          } catch {
+            // Findings might not exist
+          }
+        } catch {
+          // Security analysis might not exist yet
+        }
+
+        // Phase 4: Load intelligence analysis
+        try {
+          const intSummary = await api.getIntelligenceSummary(ev.evidence_id);
+          intSummaries[ev.evidence_id] = intSummary;
+
+          // Load recommendations
+          try {
+            const recsResp = await api.getRecommendations(ev.evidence_id);
+            recs[ev.evidence_id] = recsResp.recommendations;
+          } catch {
+            // Recommendations might not exist
+          }
+        } catch {
+          // Intelligence analysis might not exist yet
+        }
       } catch {
         // Ignore errors for individual evidence
       }
@@ -99,6 +158,10 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
 
     setAnalysisJobs(jobs);
     setAnalysisSummaries(summaries);
+    setSecuritySummaries(secSummaries);
+    setSecurityFindings(secFindings);
+    setIntelligenceSummaries(intSummaries);
+    setRecommendations(recs);
     setPollingActive(hasActiveJobs);
   }, []);
 
@@ -626,6 +689,233 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
                   <p className="text-blue-300 text-xs mt-3">
                     Analyzed with TShark {summary.tshark_version}
                   </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Phase 3: Security Analysis Results */}
+      {Object.keys(securitySummaries).length > 0 && (
+        <div className="bg-white/10 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <Lock className="w-5 h-5 text-purple-400" />
+            Security Analysis (Phase 3)
+          </h2>
+
+          {Object.entries(securitySummaries).map(([evidenceId, summary]) => {
+            const ev = evidence.find(e => e.evidence_id === evidenceId);
+            const findings = securityFindings[evidenceId] || [];
+
+            return (
+              <div key={evidenceId} className="bg-white/5 rounded-lg p-4 mb-4 last:mb-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="w-5 h-5 text-purple-400" />
+                  <span className="text-white font-medium">{ev?.original_filename || 'Unknown'}</span>
+                  <span className="text-purple-300 text-sm">Security Analysis Complete</span>
+                </div>
+
+                {/* Risk Assessment */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Risk Level</p>
+                    <p className={`text-xl font-semibold ${
+                      summary.overall_risk_level === 'CRITICAL' ? 'text-red-400' :
+                      summary.overall_risk_level === 'HIGH' ? 'text-orange-400' :
+                      summary.overall_risk_level === 'MEDIUM' ? 'text-yellow-400' :
+                      summary.overall_risk_level === 'LOW' ? 'text-green-400' :
+                      'text-blue-400'
+                    }`}>{summary.overall_risk_level}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Risk Score</p>
+                    <p className="text-white text-xl font-semibold">{summary.overall_risk_score.toFixed(1)}/100</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Total Findings</p>
+                    <p className="text-white text-xl font-semibold">{summary.total_findings}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">TLS Observations</p>
+                    <p className="text-white text-xl font-semibold">{summary.total_tls_observations}</p>
+                  </div>
+                </div>
+
+                {/* Findings by Severity */}
+                {summary.total_findings > 0 && (
+                  <div className="mb-4">
+                    <p className="text-blue-200 text-sm mb-2">Findings by Severity:</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {summary.critical_findings > 0 && (
+                        <span className="bg-red-500/20 text-red-300 px-2 py-1 rounded text-xs">
+                          {summary.critical_findings} Critical
+                        </span>
+                      )}
+                      {summary.high_findings > 0 && (
+                        <span className="bg-orange-500/20 text-orange-300 px-2 py-1 rounded text-xs">
+                          {summary.high_findings} High
+                        </span>
+                      )}
+                      {summary.medium_findings > 0 && (
+                        <span className="bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded text-xs">
+                          {summary.medium_findings} Medium
+                        </span>
+                      )}
+                      {summary.low_findings > 0 && (
+                        <span className="bg-green-500/20 text-green-300 px-2 py-1 rounded text-xs">
+                          {summary.low_findings} Low
+                        </span>
+                      )}
+                      {summary.info_findings > 0 && (
+                        <span className="bg-blue-500/20 text-blue-300 px-2 py-1 rounded text-xs">
+                          {summary.info_findings} Info
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Top Findings */}
+                {findings.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-blue-200 text-sm mb-2 flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4" />
+                      Top Security Findings:
+                    </p>
+                    <div className="space-y-2">
+                      {findings.slice(0, 5).map((finding) => (
+                        <div key={finding.finding_id} className="bg-white/5 rounded p-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                              finding.severity === 'CRITICAL' ? 'bg-red-500/20 text-red-300' :
+                              finding.severity === 'HIGH' ? 'bg-orange-500/20 text-orange-300' :
+                              finding.severity === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-blue-500/20 text-blue-300'
+                            }`}>{finding.severity}</span>
+                            <span className="text-white">{finding.title}</span>
+                          </div>
+                          <p className="text-blue-200 text-xs mt-1">{finding.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Stats */}
+                <div className="mt-4 pt-3 border-t border-white/10 grid grid-cols-3 gap-2 text-xs text-blue-300">
+                  <div>Streams: {summary.total_streams}</div>
+                  <div>Sessions: {summary.total_sessions}</div>
+                  <div>Certificates: {summary.total_certificates}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Phase 4: Intelligence Analysis Results */}
+      {Object.keys(intelligenceSummaries).length > 0 && (
+        <div className="bg-white/10 rounded-lg p-6">
+          <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-cyan-400" />
+            Intelligence Analysis (Phase 4)
+          </h2>
+
+          {Object.entries(intelligenceSummaries).map(([evidenceId, summary]) => {
+            const ev = evidence.find(e => e.evidence_id === evidenceId);
+            const recs = recommendations[evidenceId] || [];
+
+            return (
+              <div key={evidenceId} className="bg-white/5 rounded-lg p-4 mb-4 last:mb-0">
+                <div className="flex items-center gap-2 mb-3">
+                  <Award className="w-5 h-5 text-cyan-400" />
+                  <span className="text-white font-medium">{ev?.original_filename || 'Unknown'}</span>
+                  <span className="text-cyan-300 text-sm">Intelligence Report Ready</span>
+                </div>
+
+                {/* Security Posture */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+                  <div className="bg-white/5 rounded p-3 text-center">
+                    <p className="text-blue-300 text-xs uppercase">Posture Grade</p>
+                    <p className={`text-2xl font-bold ${
+                      summary.security_posture_grade === 'A' || summary.security_posture_grade === 'A+' ? 'text-green-400' :
+                      summary.security_posture_grade === 'B' ? 'text-blue-400' :
+                      summary.security_posture_grade === 'C' ? 'text-yellow-400' :
+                      summary.security_posture_grade === 'D' ? 'text-orange-400' :
+                      'text-red-400'
+                    }`}>{summary.security_posture_grade}</p>
+                    <p className="text-blue-200 text-xs">{summary.security_posture_score.toFixed(1)}/100</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">TLS Security</p>
+                    <p className="text-white text-xl font-semibold">{summary.tls_security_score.toFixed(0)}%</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Certificate</p>
+                    <p className="text-white text-xl font-semibold">{summary.certificate_security_score.toFixed(0)}%</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Protocol</p>
+                    <p className="text-white text-xl font-semibold">{summary.protocol_security_score.toFixed(0)}%</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Config</p>
+                    <p className="text-white text-xl font-semibold">{summary.configuration_security_score.toFixed(0)}%</p>
+                  </div>
+                </div>
+
+                {/* Correlations and Recommendations counts */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Correlations</p>
+                    <p className="text-white text-xl font-semibold">{summary.total_correlations}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Recommendations</p>
+                    <p className="text-white text-xl font-semibold">{summary.total_recommendations}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">ML Enabled</p>
+                    <p className="text-white text-xl font-semibold">{summary.ml_enabled ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div className="bg-white/5 rounded p-3">
+                    <p className="text-blue-300 text-xs uppercase">Anomalies</p>
+                    <p className="text-white text-xl font-semibold">{summary.anomalies_detected}</p>
+                  </div>
+                </div>
+
+                {/* Executive Summary */}
+                {summary.executive_summary && (
+                  <div className="bg-cyan-500/10 border border-cyan-400/30 rounded p-3 mb-4">
+                    <p className="text-cyan-200 text-sm">{summary.executive_summary}</p>
+                  </div>
+                )}
+
+                {/* Top Recommendations */}
+                {recs.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-blue-200 text-sm mb-2 flex items-center gap-2">
+                      <Lightbulb className="w-4 h-4 text-yellow-400" />
+                      Top Recommendations:
+                    </p>
+                    <div className="space-y-2">
+                      {recs.slice(0, 3).map((rec) => (
+                        <div key={rec.recommendation_id} className="bg-white/5 rounded p-2 text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-xs ${
+                              rec.priority === 'CRITICAL' ? 'bg-red-500/20 text-red-300' :
+                              rec.priority === 'HIGH' ? 'bg-orange-500/20 text-orange-300' :
+                              rec.priority === 'MEDIUM' ? 'bg-yellow-500/20 text-yellow-300' :
+                              'bg-blue-500/20 text-blue-300'
+                            }`}>{rec.priority}</span>
+                            <span className="text-white">{rec.title}</span>
+                          </div>
+                          <p className="text-blue-200 text-xs mt-1">{rec.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
               </div>
             );

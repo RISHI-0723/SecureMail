@@ -20,7 +20,7 @@ from sqlalchemy.exc import OperationalError, InterfaceError
 
 from app.core.celery_app import celery_app
 from app.core.database import SessionLocal
-from app.models.analysis_job import AnalysisJob, JobStatus
+from app.models.analysis_job import AnalysisJob, JobStatus, JobType, generate_job_id
 from app.models.evidence import PcapEvidence
 from app.models.packet_analysis import PacketAnalysis
 from app.services.packet import (
@@ -313,12 +313,16 @@ def analyze_evidence(self, job_id: str) -> dict:
             }
         )
 
+        # Step 7: Chain to Phase 3 Security Analysis
+        phase3_job_id = _trigger_phase3_analysis(db, job.evidence_id, packet_analysis.analysis_id)
+
         return {
             "status": "COMPLETED",
             "job_id": job_id,
             "total_packets": total_packets,
             "email_packets": email_packets,
             "protocols_detected": protocols_detected,
+            "phase3_job_id": phase3_job_id,
         }
 
     except (OperationalError, InterfaceError) as e:
@@ -363,6 +367,41 @@ def _fail_job(db, job: AnalysisJob, error_code: str, error_message: str):
         f"Job failed: {job.job_id}",
         extra={"job_id": job.job_id, "error_code": error_code}
     )
+
+
+def _trigger_phase3_analysis(db, evidence_id: str, packet_analysis_id: str) -> str:
+    """
+    Trigger Phase 3 security analysis after Phase 2 completes.
+
+    Returns the Phase 3 job ID.
+    """
+    from app.workers.security_tasks import run_security_analysis
+
+    # Create Phase 3 job
+    phase3_job_id = generate_job_id()
+    phase3_job = AnalysisJob(
+        job_id=phase3_job_id,
+        evidence_id=evidence_id,
+        job_type=JobType.TLS_ANALYSIS,
+        status=JobStatus.QUEUED,
+        stage="QUEUED_FOR_SECURITY_ANALYSIS"
+    )
+    db.add(phase3_job)
+    db.commit()
+
+    logger.info(
+        f"Triggering Phase 3 security analysis",
+        extra={
+            "phase3_job_id": phase3_job_id,
+            "evidence_id": evidence_id,
+            "packet_analysis_id": packet_analysis_id
+        }
+    )
+
+    # Enqueue Phase 3 task
+    run_security_analysis.delay(phase3_job_id, packet_analysis_id)
+
+    return phase3_job_id
 
 
 # Register worker startup handler for crash recovery

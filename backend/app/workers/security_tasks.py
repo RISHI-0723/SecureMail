@@ -332,6 +332,9 @@ def run_security_analysis(
             }
         )
 
+        # Chain to Phase 4 Intelligence Analysis
+        phase4_job_id = _trigger_phase4_analysis(db, job.evidence_id, security_analysis.analysis_id)
+
         return {
             "status": "COMPLETED",
             "job_id": job_id,
@@ -341,7 +344,8 @@ def run_security_analysis(
             "total_findings": findings_result.summary.total_findings,
             "overall_risk": risk_assessment.posture.overall_risk.value,
             "overall_score": risk_assessment.posture.overall_score,
-            "duration_seconds": duration
+            "duration_seconds": duration,
+            "phase4_job_id": phase4_job_id
         }
 
     except (OperationalError, InterfaceError) as e:
@@ -465,6 +469,46 @@ def _determine_coverage(packet_analysis: Optional[PacketAnalysis]) -> str:
         return "COMPLETE"
 
     return "PARTIAL"
+
+
+def _trigger_phase4_analysis(db, evidence_id: str, security_analysis_id: str) -> str:
+    """
+    Trigger Phase 4 intelligence analysis after Phase 3 completes.
+
+    Returns the Phase 4 job ID.
+    """
+    from app.models.analysis_job import generate_job_id
+
+    # Create Phase 4 job
+    phase4_job_id = generate_job_id()
+    phase4_job = AnalysisJob(
+        job_id=phase4_job_id,
+        evidence_id=evidence_id,
+        job_type=JobType.INTELLIGENCE,
+        status=JobStatus.QUEUED,
+        stage="QUEUED_FOR_INTELLIGENCE_ANALYSIS"
+    )
+    db.add(phase4_job)
+    db.commit()
+
+    logger.info(
+        f"Triggering Phase 4 intelligence analysis",
+        extra={
+            "phase4_job_id": phase4_job_id,
+            "evidence_id": evidence_id,
+            "security_analysis_id": security_analysis_id
+        }
+    )
+
+    # Enqueue Phase 4 task
+    run_intelligence_analysis.delay(
+        job_id=phase4_job_id,
+        security_analysis_id=security_analysis_id,
+        generate_reports=True,
+        enable_ml=True
+    )
+
+    return phase4_job_id
 
 
 # ==============================================================================
@@ -681,12 +725,12 @@ def run_intelligence_analysis(
             risk_assessment = RiskAssessment(**security_analysis.risk_assessment)
 
         # Build findings result for aggregation
-        from app.services.findings.models import FindingsResult, FindingsSummary
+        from app.services.findings.models import FindingsResult, FindingSummary
         findings_result = FindingsResult(
             evidence_id=job.evidence_id,
             job_id=job_id,
             findings=findings,
-            summary=FindingsSummary(
+            summary=FindingSummary(
                 total_findings=len(findings),
                 critical_count=security_analysis.critical_findings or 0,
                 high_count=security_analysis.high_findings or 0,
@@ -874,7 +918,7 @@ def run_intelligence_analysis(
                 "sha256": evidence.sha256 if evidence else "",
                 "file_size_bytes": evidence.file_size_bytes if evidence else 0,
                 "upload_timestamp": evidence.upload_timestamp if evidence else None,
-                "case_name": evidence.case.name if evidence and evidence.case else None,
+                "case_name": evidence.case.case_name if evidence and evidence.case else None,
                 "packets_analyzed": security_analysis.total_streams or 0,
             }
 

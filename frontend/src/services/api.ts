@@ -16,6 +16,20 @@ import type {
   LoginRequest,
   TokenResponse,
   UserInfo,
+  SecurityAnalysisSummary,
+  TcpStream,
+  EmailSession,
+  TlsObservation,
+  CertificateInfo,
+  SecurityFinding,
+  RiskAssessment,
+  IntelligenceSummary,
+  Correlation,
+  Recommendation,
+  SecurityPosture,
+  MLInsights,
+  ReportInfo,
+  EvidenceIntegrity,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -259,6 +273,78 @@ export const api = {
   async triggerAnalysis(evidenceId: string): Promise<{ job_id: string; status: string; message: string }> {
     return fetchApi<{ job_id: string; status: string; message: string }>(
       `/api/v1/evidence/${evidenceId}/analyze`,
+      { method: 'POST' }
+    );
+  },
+
+  // Phase 3: Security Analysis endpoints
+  async getSecuritySummary(evidenceId: string): Promise<SecurityAnalysisSummary> {
+    return fetchApi<SecurityAnalysisSummary>(`/api/v1/security/${evidenceId}/summary`);
+  },
+
+  async getTcpStreams(evidenceId: string): Promise<{ streams: TcpStream[]; total: number; complete_count: number; partial_count: number }> {
+    return fetchApi<{ streams: TcpStream[]; total: number; complete_count: number; partial_count: number }>(`/api/v1/security/${evidenceId}/streams`);
+  },
+
+  async getEmailSessions(evidenceId: string): Promise<{ sessions: EmailSession[]; total: number; by_protocol: Record<string, number>; by_transport_security: Record<string, number> }> {
+    return fetchApi<{ sessions: EmailSession[]; total: number; by_protocol: Record<string, number>; by_transport_security: Record<string, number> }>(`/api/v1/security/${evidenceId}/sessions`);
+  },
+
+  async getTlsObservations(evidenceId: string): Promise<{ observations: TlsObservation[]; total: number; by_version: Record<string, number>; modern_tls_count: number; deprecated_tls_count: number }> {
+    return fetchApi<{ observations: TlsObservation[]; total: number; by_version: Record<string, number>; modern_tls_count: number; deprecated_tls_count: number }>(`/api/v1/security/${evidenceId}/tls`);
+  },
+
+  async getCertificates(evidenceId: string): Promise<{ certificates: CertificateInfo[]; total: number; valid_count: number; expired_count: number; weak_key_count: number; self_signed_count: number }> {
+    return fetchApi<{ certificates: CertificateInfo[]; total: number; valid_count: number; expired_count: number; weak_key_count: number; self_signed_count: number }>(`/api/v1/security/${evidenceId}/certificates`);
+  },
+
+  async getSecurityFindings(evidenceId: string): Promise<{ findings: SecurityFinding[]; total: number; by_severity: Record<string, number>; by_category: Record<string, number>; unique_rules: string[] }> {
+    return fetchApi<{ findings: SecurityFinding[]; total: number; by_severity: Record<string, number>; by_category: Record<string, number>; unique_rules: string[] }>(`/api/v1/security/${evidenceId}/findings`);
+  },
+
+  async getRiskAssessment(evidenceId: string): Promise<RiskAssessment> {
+    return fetchApi<RiskAssessment>(`/api/v1/security/${evidenceId}/risk`);
+  },
+
+  async triggerSecurityAnalysis(evidenceId: string): Promise<{ job_id: string; status: string; message: string }> {
+    return fetchApi<{ job_id: string; status: string; message: string }>(
+      `/api/v1/security/${evidenceId}/analyze`,
+      { method: 'POST' }
+    );
+  },
+
+  // Phase 4: Intelligence Analysis endpoints
+  async getIntelligenceSummary(evidenceId: string): Promise<IntelligenceSummary> {
+    return fetchApi<IntelligenceSummary>(`/api/v1/evidence/${evidenceId}/intelligence`);
+  },
+
+  async getSecurityPosture(evidenceId: string): Promise<SecurityPosture> {
+    return fetchApi<SecurityPosture>(`/api/v1/evidence/${evidenceId}/intelligence/posture`);
+  },
+
+  async getCorrelations(evidenceId: string): Promise<{ correlations: Correlation[]; total: number }> {
+    return fetchApi<{ correlations: Correlation[]; total: number }>(`/api/v1/evidence/${evidenceId}/correlations`);
+  },
+
+  async getRecommendations(evidenceId: string): Promise<{ recommendations: Recommendation[]; total: number }> {
+    return fetchApi<{ recommendations: Recommendation[]; total: number }>(`/api/v1/evidence/${evidenceId}/recommendations`);
+  },
+
+  async getMLInsights(evidenceId: string): Promise<MLInsights> {
+    return fetchApi<MLInsights>(`/api/v1/evidence/${evidenceId}/ml`);
+  },
+
+  async getReports(evidenceId: string): Promise<{ reports: ReportInfo[]; total: number }> {
+    return fetchApi<{ reports: ReportInfo[]; total: number }>(`/api/v1/evidence/${evidenceId}/reports`);
+  },
+
+  async getIntegrity(evidenceId: string): Promise<EvidenceIntegrity> {
+    return fetchApi<EvidenceIntegrity>(`/api/v1/evidence/${evidenceId}/integrity`);
+  },
+
+  async triggerIntelligenceAnalysis(evidenceId: string): Promise<{ job_id: string; evidence_id: string; status: string; message: string }> {
+    return fetchApi<{ job_id: string; evidence_id: string; status: string; message: string }>(
+      `/api/v1/evidence/${evidenceId}/intelligence`,
       { method: 'POST' }
     );
   },
