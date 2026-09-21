@@ -56,6 +56,7 @@ services:
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       EVIDENCE_STORAGE_PATH: /app/data/evidence
       MAX_PCAP_SIZE_MB: ${MAX_PCAP_SIZE_MB:-500}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-SecureAdmin123!}
     depends_on:
       postgres:
         condition: service_healthy

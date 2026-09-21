@@ -1098,7 +1098,7 @@ def run_intelligence_analysis(
 
         # Summary
         intelligence_report.executive_summary = summary.executive_summary
-        intelligence_report.aggregated_findings = [af.model_dump() for af in aggregated_findings]
+        intelligence_report.aggregated_findings = [af.model_dump(mode='json') for af in aggregated_findings]
         intelligence_report.correlation_summary = {
             "total": len(correlations),
             "by_type": {}
@@ -1108,7 +1108,7 @@ def run_intelligence_analysis(
             "by_priority": {}
         }
         if ml_insights.ml_enabled:
-            intelligence_report.ml_insights = ml_insights.model_dump()
+            intelligence_report.ml_insights = ml_insights.model_dump(mode='json')
             intelligence_report.anomaly_summary = {
                 "total_anomalies": ml_insights.anomalies_detected,
                 "confidence": ml_insights.overall_confidence

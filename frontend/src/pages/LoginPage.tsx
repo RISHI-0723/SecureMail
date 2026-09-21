@@ -251,12 +251,6 @@ export function LoginPage({ onLoginSuccess }: LoginPageProps) {
             </div>
           </div>
 
-          {/* Demo Credentials Info (for SIH demo) */}
-          <div className="mt-6 p-4 bg-slate-900/30 border border-slate-800/50 rounded-lg">
-            <p className="text-slate-500 text-xs text-center">
-              Default admin: <span className="text-slate-400">admin</span> / <span className="text-slate-400">SecureAdmin123!</span>
-            </p>
-          </div>
         </div>
       </div>
     </div>
