@@ -74,9 +74,10 @@ class PacketParser:
             return
 
         # Parse header line to determine field positions
+        # Use lowercase keys for case-insensitive matching
         header_line = lines[0]
         headers = header_line.split('\t')
-        self._field_indices = {h: i for i, h in enumerate(headers)}
+        self._field_indices = {h.lower(): i for i, h in enumerate(headers)}
 
         # Log header mapping for debugging
         logger.debug(f"TShark output headers: {headers}")
@@ -168,7 +169,8 @@ class PacketParser:
 
     def _get_field(self, fields: list[str], field_name: str) -> Optional[str]:
         """Get a string field value, or None if not present/empty."""
-        idx = self._field_indices.get(field_name)
+        # Use lowercase for case-insensitive matching
+        idx = self._field_indices.get(field_name.lower())
         if idx is None or idx >= len(fields):
             return None
         value = fields[idx].strip()

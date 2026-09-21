@@ -400,20 +400,18 @@ def _session_candidates_to_packets(
     packets = []
     for candidate in session_candidates:
         # Create a representative packet for each session candidate
+        # Use correct field names matching PacketRecord model
         packet = PacketRecord(
-            frame_number=candidate.get("first_packet_number", 0),
+            packet_number=candidate.get("first_packet", candidate.get("first_packet_number", 0)),
             timestamp=candidate.get("start_time"),
             src_ip=candidate.get("client_ip", ""),
             dst_ip=candidate.get("server_ip", ""),
             src_port=candidate.get("client_port", 0),
             dst_port=candidate.get("server_port", 0),
-            protocol=candidate.get("protocol", "TCP"),
-            stream_id=candidate.get("stream_id"),
-            tcp_flags=0,
-            tcp_seq=0,
-            tcp_ack=0,
-            payload_length=candidate.get("packet_count", 0),
-            info=f"Session candidate for {candidate.get('protocol', 'unknown')}"
+            transport_protocol="TCP",
+            detected_protocol=candidate.get("protocol", "UNKNOWN"),
+            tcp_stream=candidate.get("tcp_stream", candidate.get("stream_id")),
+            tcp_flags=None,
         )
         packets.append(packet)
 
@@ -423,19 +421,16 @@ def _session_candidates_to_packets(
         if packet_count > 1:
             # Add a second packet to represent the response direction
             response_packet = PacketRecord(
-                frame_number=candidate.get("first_packet_number", 0) + 1,
+                packet_number=candidate.get("first_packet", candidate.get("first_packet_number", 0)) + 1,
                 timestamp=candidate.get("start_time"),
                 src_ip=candidate.get("server_ip", ""),
                 dst_ip=candidate.get("client_ip", ""),
                 src_port=candidate.get("server_port", 0),
                 dst_port=candidate.get("client_port", 0),
-                protocol=candidate.get("protocol", "TCP"),
-                stream_id=candidate.get("stream_id"),
-                tcp_flags=0,
-                tcp_seq=0,
-                tcp_ack=0,
-                payload_length=0,
-                info=f"Response for {candidate.get('protocol', 'unknown')}"
+                transport_protocol="TCP",
+                detected_protocol=candidate.get("protocol", "UNKNOWN"),
+                tcp_stream=candidate.get("tcp_stream", candidate.get("stream_id")),
+                tcp_flags=None,
             )
             packets.append(response_packet)
 
