@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 # Revision identifiers
 revision = '0005_phase5_auth'
-down_revision = '0004_phase4'
+down_revision = '004_phase4'
 branch_labels = None
 depends_on = None
 

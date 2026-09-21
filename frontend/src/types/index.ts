@@ -125,3 +125,31 @@ export interface UploadState {
   error?: string;
   result?: EvidenceUploadResponse;
 }
+
+// Authentication types
+export interface LoginRequest {
+  username: string;
+  password: string;
+}
+
+export interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
+export interface UserInfo {
+  user_id: string;
+  username: string;
+  email: string;
+  full_name: string | null;
+  role: 'ADMIN' | 'ANALYST' | 'VIEWER';
+  permissions: string[];
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: UserInfo | null;
+  accessToken: string | null;
+}

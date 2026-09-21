@@ -1,18 +1,21 @@
 /**
- * Main App component - Phase 1 Evidence Ingestion
+ * Main App component - Phase 5 Production
  */
 import { useEffect, useState } from 'react';
-import { Shield, Activity, Database, Zap, FolderOpen, Home } from 'lucide-react';
-import { api, ApiError } from '@/services/api';
-import type { HealthResponse, DependenciesHealthResponse } from '@/types';
+import { Shield, Activity, Database, Zap, FolderOpen, Home, LogOut, User } from 'lucide-react';
+import { api, ApiError, getAccessToken, clearTokens } from '@/services/api';
+import type { HealthResponse, DependenciesHealthResponse, UserInfo } from '@/types';
 import { StatusBadge } from '@/components/StatusBadge';
 import { CasesPage } from '@/pages/CasesPage';
 import { CaseDetailPage } from '@/pages/CaseDetailPage';
+import { LoginPage } from '@/pages/LoginPage';
 
 type ConnectionStatus = 'loading' | 'connected' | 'disconnected' | 'error';
 type Page = 'dashboard' | 'cases' | 'case-detail';
 
 function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(!!getAccessToken());
+  const [currentUser, setCurrentUser] = useState<UserInfo | null>(null);
   const [status, setStatus] = useState<ConnectionStatus>('loading');
   const [healthData, setHealthData] = useState<HealthResponse | null>(null);
   const [depsData, setDepsData] = useState<DependenciesHealthResponse | null>(null);
@@ -21,8 +24,32 @@ function App() {
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
 
   useEffect(() => {
-    checkBackendHealth();
-  }, []);
+    if (isAuthenticated) {
+      checkBackendHealth();
+      fetchCurrentUser();
+    }
+  }, [isAuthenticated]);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const user = await api.getCurrentUser();
+      setCurrentUser(user);
+    } catch (err) {
+      // If user fetch fails, clear auth state
+      handleLogout();
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    clearTokens();
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setCurrentPage('dashboard');
+  };
 
   const checkBackendHealth = async () => {
     setStatus('loading');
@@ -151,28 +178,34 @@ function App() {
 
       {/* Info Card */}
       <div className="bg-white rounded-lg shadow-xl p-8">
-        <h3 className="text-xl font-bold text-gray-800 mb-4">About Phase 1</h3>
+        <h3 className="text-xl font-bold text-gray-800 mb-4">SecureMailScope Capabilities</h3>
         <div className="text-gray-600 space-y-2">
           <p>
-            Phase 1 implements the Evidence Ingestion subsystem for SecureMailScope:
+            SecureMailScope provides comprehensive email security forensic analysis:
           </p>
           <ul className="list-disc list-inside space-y-1 ml-4">
             <li>Create and manage forensic cases</li>
             <li>Upload PCAP and PCAPNG evidence files</li>
-            <li>Validate file format using magic bytes</li>
-            <li>Calculate SHA-256 evidence hashes</li>
-            <li>Detect duplicate evidence</li>
-            <li>Secure evidence storage with Docker volume persistence</li>
-            <li>Create analysis jobs for future processing</li>
+            <li>Protocol detection (SMTP, IMAP, POP3)</li>
+            <li>TLS handshake analysis and cipher assessment</li>
+            <li>X.509 certificate validation</li>
+            <li>Security findings with severity levels</li>
+            <li>Risk scoring and security posture</li>
+            <li>ML-powered anomaly detection</li>
+            <li>Comprehensive forensic reports</li>
           </ul>
           <p className="mt-4 text-sm text-gray-500">
-            Full PCAP analysis (protocol detection, TLS inspection, certificate analysis)
-            will be implemented in Phase 2.
+            Version 0.5.0 - Production Ready with JWT Authentication
           </p>
         </div>
       </div>
     </div>
   );
+
+  // Show login page if not authenticated
+  if (!isAuthenticated) {
+    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900">
@@ -189,8 +222,23 @@ function App() {
             AI-Assisted Cryptographic Security Posture Assessment
           </p>
           <p className="text-sm text-blue-300 mt-2">
-            Phase 1 - Evidence Ingestion
+            v0.5.0 - Production Ready
           </p>
+          {currentUser && (
+            <div className="mt-4 flex items-center justify-center gap-4">
+              <span className="text-sm text-blue-200 flex items-center gap-1">
+                <User className="w-4 h-4" />
+                {currentUser.username} ({currentUser.role})
+              </span>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-blue-200 hover:text-white flex items-center gap-1 transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign Out
+              </button>
+            </div>
+          )}
         </header>
 
         {/* Navigation */}

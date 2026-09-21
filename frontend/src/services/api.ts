@@ -12,9 +12,34 @@ import type {
   EvidenceUploadResponse,
   AnalysisJob,
   AnalysisJobListResponse,
+  LoginRequest,
+  TokenResponse,
+  UserInfo,
 } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
+// Token storage
+let accessToken: string | null = localStorage.getItem('access_token');
+let refreshToken: string | null = localStorage.getItem('refresh_token');
+
+export function setTokens(access: string, refresh: string) {
+  accessToken = access;
+  refreshToken = refresh;
+  localStorage.setItem('access_token', access);
+  localStorage.setItem('refresh_token', refresh);
+}
+
+export function clearTokens() {
+  accessToken = null;
+  refreshToken = null;
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+}
+
+export function getAccessToken(): string | null {
+  return accessToken;
+}
 
 export class ApiError extends Error {
   constructor(
@@ -30,15 +55,22 @@ export class ApiError extends Error {
 
 async function fetchApi<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit,
+  requireAuth: boolean = true
 ): Promise<T> {
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string>),
+    };
+
+    if (requireAuth && accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+      headers,
     });
 
     const data = await response.json();
@@ -80,9 +112,15 @@ async function uploadFile<T>(
   const formData = new FormData();
   formData.append('file', file);
 
+  const headers: Record<string, string> = {};
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'POST',
+      headers,
       body: formData,
     });
 
@@ -119,13 +157,43 @@ async function uploadFile<T>(
 }
 
 export const api = {
+  // Auth endpoints
+  async login(credentials: LoginRequest): Promise<TokenResponse> {
+    const response = await fetchApi<TokenResponse>('/api/v1/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(credentials),
+    }, false);
+    setTokens(response.access_token, response.refresh_token);
+    return response;
+  },
+
+  async logout(): Promise<void> {
+    clearTokens();
+  },
+
+  async getCurrentUser(): Promise<UserInfo> {
+    return fetchApi<UserInfo>('/api/v1/auth/me');
+  },
+
+  async refreshToken(): Promise<TokenResponse> {
+    if (!refreshToken) {
+      throw new ApiError('No refresh token available', undefined, 'NO_REFRESH_TOKEN');
+    }
+    const response = await fetchApi<TokenResponse>('/api/v1/auth/refresh', {
+      method: 'POST',
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }, false);
+    setTokens(response.access_token, response.refresh_token);
+    return response;
+  },
+
   // Health endpoints
   async checkHealth(): Promise<HealthResponse> {
-    return fetchApi<HealthResponse>('/api/v1/health');
+    return fetchApi<HealthResponse>('/api/v1/health', undefined, false);
   },
 
   async checkDependenciesHealth(): Promise<DependenciesHealthResponse> {
-    return fetchApi<DependenciesHealthResponse>('/api/v1/health/dependencies');
+    return fetchApi<DependenciesHealthResponse>('/api/v1/health/dependencies', undefined, false);
   },
 
   // Case endpoints

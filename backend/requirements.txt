@@ -42,3 +42,4 @@ bandit==1.7.10
 
 # CORS
 fastapi-cors==0.0.6
+pydantic[email] 

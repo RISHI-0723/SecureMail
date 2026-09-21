@@ -60,7 +60,7 @@ def upgrade() -> None:
 
         # Status
         sa.Column('status', sa.Enum('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'PARTIAL',
-                                     name='securityanalysisstatus'),
+                                     name='securityanalysisstatus', create_type=False),
                   nullable=False, server_default='QUEUED'),
 
         # Timestamps
