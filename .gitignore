@@ -84,8 +84,6 @@ evidence/
 *.pcap
 *.pcapng
 
-# Alembic
-alembic.ini
 
 # ML models and datasets
 ml/models/*.pkl
