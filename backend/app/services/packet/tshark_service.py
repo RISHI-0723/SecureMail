@@ -224,12 +224,13 @@ class TSharkService:
         # -E separator=\t uses tab as field separator
         cmd = [
             self._validated_binary,
+            "-n",
             "-r", str(evidence),
             "-T", "fields",
             "-E", "header=y",
             "-E", "separator=\t",
             "-E", "quote=n",
-            "-E", "occurrence=f",  # First occurrence only for multi-valued fields
+            "-E", "occurrence=f",
         ]
 
         # Add field extraction options
