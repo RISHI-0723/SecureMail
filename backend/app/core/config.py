@@ -30,7 +30,11 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> str:
-        """Construct PostgreSQL database URL."""
+        """Get PostgreSQL database URL."""
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            return database_url
+
         return (
             f"postgresql://{self.postgres_user}:{self.postgres_password}"
             f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
