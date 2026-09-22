@@ -34,7 +34,7 @@ echo ""
 # Step 2: Start FastAPI server with Gunicorn
 echo "[2/2] Starting FastAPI server..."
 echo "   Workers: 4"
-echo "   Timeout: 120s"
+echo "   Timeout: 360s"
 echo "   Bind: 0.0.0.0:8000"
 echo "==================================================================="
 echo ""
@@ -43,7 +43,7 @@ exec gunicorn app.main:app \
     --worker-class uvicorn.workers.UvicornWorker \
     --workers 4 \
     --bind 0.0.0.0:8000 \
-    --timeout 120 \
+    --timeout 360 \
     --keep-alive 5 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
