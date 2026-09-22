@@ -127,6 +127,7 @@ class DemoExecutor:
                     }
                 )
                 # Phase 2 job is already marked as FAILED by execute_phase2_analysis
+                _update_case_status_on_failure(db, evidence_id)
                 return
             except Exception as e:
                 logger.error(
@@ -152,6 +153,7 @@ class DemoExecutor:
                     job.error_message = str(e)[:500]
                     job.completed_at = datetime.now(timezone.utc)
                     db.commit()
+                _update_case_status_on_failure(db, evidence_id)
                 return
 
             # Phase 3: Security Analysis
@@ -209,6 +211,7 @@ class DemoExecutor:
                     }
                 )
                 # Phase 3 job is already marked as FAILED
+                _update_case_status_on_failure(db, evidence_id)
                 return
             except Exception as e:
                 logger.error(
@@ -234,6 +237,7 @@ class DemoExecutor:
                         job.error_message = str(e)[:500]
                         job.completed_at = datetime.now(timezone.utc)
                         db.commit()
+                _update_case_status_on_failure(db, evidence_id)
                 return
 
             # Phase 4: Intelligence Analysis
@@ -290,6 +294,38 @@ class DemoExecutor:
                     }
                 )
 
+                # Update parent case status after all phases complete
+                try:
+                    from app.services.case_service import case_service
+                    from app.models.evidence import PcapEvidence
+
+                    # Get case_id from evidence
+                    evidence = db.query(PcapEvidence).filter(
+                        PcapEvidence.evidence_id == evidence_id
+                    ).first()
+
+                    if evidence and evidence.case_id:
+                        case_status = case_service.update_case_status(db, evidence.case_id)
+                        logger.info(
+                            "DEMO_CASE_STATUS_UPDATED",
+                            extra={
+                                "event": "DEMO_CASE_STATUS_UPDATED",
+                                "case_id": evidence.case_id,
+                                "evidence_id": evidence_id,
+                                "case_status": case_status.value
+                            }
+                        )
+                except Exception as e:
+                    logger.error(
+                        "DEMO_CASE_STATUS_UPDATE_FAILED",
+                        extra={
+                            "event": "DEMO_CASE_STATUS_UPDATE_FAILED",
+                            "evidence_id": evidence_id,
+                            "error_message": str(e)
+                        },
+                        exc_info=True
+                    )
+
             except AnalysisExecutionError as e:
                 logger.error(
                     "DEMO_PHASE4_FAILED",
@@ -303,6 +339,7 @@ class DemoExecutor:
                     }
                 )
                 # Phase 4 job is already marked as FAILED
+                _update_case_status_on_failure(db, evidence_id)
                 return
             except Exception as e:
                 logger.error(
@@ -328,6 +365,7 @@ class DemoExecutor:
                         job.error_message = str(e)[:500]
                         job.completed_at = datetime.now(timezone.utc)
                         db.commit()
+                _update_case_status_on_failure(db, evidence_id)
                 return
 
         except Exception as e:
@@ -346,6 +384,30 @@ class DemoExecutor:
         finally:
             if db:
                 db.close()
+
+
+def _update_case_status_on_failure(db: Session, evidence_id: str) -> None:
+    """Update case status when analysis fails."""
+    try:
+        from app.services.case_service import case_service
+        from app.models.evidence import PcapEvidence
+
+        # Get case_id from evidence
+        evidence = db.query(PcapEvidence).filter(
+            PcapEvidence.evidence_id == evidence_id
+        ).first()
+
+        if evidence and evidence.case_id:
+            case_service.update_case_status(db, evidence.case_id)
+            logger.info(
+                "Case status updated after analysis failure",
+                extra={"case_id": evidence.case_id, "evidence_id": evidence_id}
+            )
+    except Exception as e:
+        logger.warning(
+            f"Failed to update case status after analysis failure: {e}",
+            extra={"evidence_id": evidence_id}
+        )
 
 
 # Module-level instance

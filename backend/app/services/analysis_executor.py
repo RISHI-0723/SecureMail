@@ -18,6 +18,7 @@ from app.models.analysis_job import AnalysisJob, JobStatus, JobType, generate_jo
 from app.models.evidence import PcapEvidence
 from app.models.packet_analysis import PacketAnalysis
 from app.models.security_analysis import SecurityAnalysis, SecurityAnalysisStatus
+from app.models.intelligence import IntelligenceStatus
 from app.services.packet import (
     TSharkService,
     TSharkStatus,
@@ -761,13 +762,42 @@ def execute_phase4_analysis(
         job.progress_percent = "80"
         db.commit()
 
-        intelligence_report.posture = posture.model_dump()
-        intelligence_report.summary = summary.model_dump()
+        # Calculate duration
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        # Populate intelligence report JSON fields
         intelligence_report.aggregated_findings = [f.model_dump() for f in aggregated_findings]
-        intelligence_report.correlations = [c.model_dump() for c in correlations]
-        intelligence_report.recommendations = [r.model_dump() for r in recommendations]
+        intelligence_report.correlation_summary = {
+            "total": len(correlations),
+            "by_type": {}  # Could be expanded if needed
+        }
+        intelligence_report.recommendation_summary = {
+            "total": len(recommendations),
+            "by_priority": {}  # Could be expanded if needed
+        }
         intelligence_report.ml_insights = {"ml_enabled": False, "summary": "ML disabled for demo mode"}
+
+        # Set counts
+        intelligence_report.total_correlations = len(correlations)
+        intelligence_report.total_recommendations = len(recommendations)
+
+        # Set security posture scores from posture object
+        intelligence_report.security_posture_score = posture.overall_score
+        intelligence_report.security_posture_grade = posture.grade.value
+        intelligence_report.tls_security_score = posture.tls_security.score
+        intelligence_report.certificate_security_score = posture.certificate_security.score
+        intelligence_report.protocol_security_score = posture.protocol_security.score
+        intelligence_report.configuration_security_score = posture.configuration_security.score
+
+        # Set executive summary from summary object
+        intelligence_report.executive_summary = summary.executive_summary if summary.executive_summary else ""
+
+        # Set timestamps and duration
         intelligence_report.completed_at = datetime.now(timezone.utc)
+        intelligence_report.duration_seconds = duration
+
+        # CRITICAL: Set status to COMPLETED so frontend can retrieve the report
+        intelligence_report.status = IntelligenceStatus.COMPLETED
 
         # Complete job
         job.status = JobStatus.COMPLETED

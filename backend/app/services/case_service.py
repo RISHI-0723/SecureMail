@@ -7,9 +7,9 @@ import logging
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from app.models.case import Case
+from app.models.case import Case, CaseStatus
 from app.models.evidence import PcapEvidence
-from app.models.analysis_job import AnalysisJob
+from app.models.analysis_job import AnalysisJob, JobStatus, JobType
 from app.models.packet_analysis import PacketAnalysis
 from app.models.security_analysis import SecurityAnalysis
 from app.models.intelligence import (
@@ -202,6 +202,121 @@ class CaseService:
                 f"Failed to delete case: {str(e)}",
                 code="DELETE_FAILED"
             )
+
+    def update_case_status(self, db: Session, case_id: str) -> CaseStatus:
+        """
+        Update case status based on all evidence analysis jobs.
+
+        Aggregates status from all evidence files in the case:
+        - If any job is QUEUED or RUNNING → Case = PROCESSING
+        - If all jobs are COMPLETED → Case = COMPLETED
+        - If any job is FAILED → Case = PARTIAL or FAILED (depending on others)
+
+        Args:
+            db: Database session
+            case_id: Case identifier
+
+        Returns:
+            Updated case status
+
+        Raises:
+            CaseServiceError: If case not found
+        """
+        case = db.query(Case).filter(Case.case_id == case_id).first()
+        if not case:
+            raise CaseServiceError(
+                f"Case not found: {case_id}",
+                code="CASE_NOT_FOUND"
+            )
+
+        # Get all evidence for this case
+        evidence_list = db.query(PcapEvidence).filter(
+            PcapEvidence.case_id == case_id
+        ).all()
+
+        if not evidence_list:
+            # No evidence → case can be OPEN
+            if case.status != CaseStatus.OPEN:
+                case.status = CaseStatus.OPEN
+                db.commit()
+            return case.status
+
+        # Get all analysis jobs for all evidence
+        evidence_ids = [ev.evidence_id for ev in evidence_list]
+
+        # For each evidence, get the latest FULL_ANALYSIS job (Phase 2)
+        # Phase 3 and Phase 4 are triggered automatically in demo mode
+        latest_jobs = []
+        for evidence_id in evidence_ids:
+            job = db.query(AnalysisJob).filter(
+                AnalysisJob.evidence_id == evidence_id,
+                AnalysisJob.job_type == JobType.FULL_ANALYSIS
+            ).order_by(AnalysisJob.created_at.desc()).first()
+
+            if job:
+                latest_jobs.append(job)
+
+        if not latest_jobs:
+            # No analysis jobs → case is OPEN
+            if case.status != CaseStatus.OPEN:
+                case.status = CaseStatus.OPEN
+                db.commit()
+            return case.status
+
+        # Aggregate status
+        has_queued = False
+        has_running = False
+        has_completed = False
+        has_failed = False
+
+        for job in latest_jobs:
+            if job.status == JobStatus.QUEUED:
+                has_queued = True
+            elif job.status == JobStatus.RUNNING:
+                has_running = True
+            elif job.status == JobStatus.COMPLETED:
+                has_completed = True
+            elif job.status in (JobStatus.FAILED, JobStatus.TIMEOUT):
+                has_failed = True
+
+        # Determine case status
+        new_status = case.status
+
+        if has_queued or has_running:
+            # Any job still processing → Case = PROCESSING
+            new_status = CaseStatus.PROCESSING
+        elif has_failed and not has_completed:
+            # All jobs failed → Case = FAILED
+            new_status = CaseStatus.FAILED
+        elif has_failed and has_completed:
+            # Some failed, some completed → Case = PARTIAL
+            new_status = CaseStatus.PARTIAL
+        elif has_completed and not has_failed and not has_queued and not has_running:
+            # All jobs completed successfully → Case = COMPLETED
+            new_status = CaseStatus.COMPLETED
+        else:
+            # Default to OPEN
+            new_status = CaseStatus.OPEN
+
+        # Update if changed
+        if case.status != new_status:
+            logger.info(
+                f"Updating case status: {case.status.value} → {new_status.value}",
+                extra={
+                    "case_id": case_id,
+                    "old_status": case.status.value,
+                    "new_status": new_status.value,
+                    "evidence_count": len(evidence_ids),
+                    "jobs_queued": has_queued,
+                    "jobs_running": has_running,
+                    "jobs_completed": has_completed,
+                    "jobs_failed": has_failed
+                }
+            )
+            case.status = new_status
+            db.commit()
+
+        return case.status
 
 
 # Global service instance
