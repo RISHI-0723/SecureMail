@@ -402,14 +402,15 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         job.progress_percent = "70"
         db.commit()
 
-        findings = finding_engine.generate_findings(
-            streams=streams,
-            sessions=sessions,
-            tls_observations=tls_observations,
-            certificates=certificates,
-            evidence_id=job.evidence_id,
-            job_id=job_id
-        )
+        # Call all FindingEngine analyze methods
+        finding_engine.analyze_streams(streams, job.evidence_id, job_id)
+        finding_engine.analyze_email_sessions(sessions, job.evidence_id, job_id)
+        finding_engine.analyze_tls_observations(tls_observations, job.evidence_id, job_id)
+        finding_engine.analyze_certificates(certificates, job.evidence_id, job_id)
+
+        # Get findings result
+        findings_result = finding_engine.get_result(job.evidence_id, job_id)
+        findings = findings_result.findings
 
         # Step 6: Calculate risk
         job.stage = "CALCULATING_RISK"
@@ -417,35 +418,47 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         db.commit()
 
         risk_assessment = risk_engine.assess_risk(
-            findings=findings,
-            sessions=sessions,
-            tls_observations=tls_observations,
-            certificates=certificates
+            findings_result=findings_result,
+            total_streams=stream_result.total_streams,
+            total_sessions=email_result.total_sessions,
+            total_certificates=cert_result.total_certificates,
+            confidence="HIGH",
+            coverage="COMPLETE"
         )
 
         # Step 7: Update security analysis with results
-        security_analysis.tcp_stream_count = stream_result.total_streams
-        security_analysis.tcp_complete_count = stream_result.complete_streams
-        security_analysis.tcp_partial_count = stream_result.partial_streams
-        security_analysis.email_session_count = email_result.total_sessions
-        security_analysis.smtp_session_count = email_result.smtp_sessions
-        security_analysis.imap_session_count = email_result.imap_sessions
-        security_analysis.pop3_session_count = email_result.pop3_sessions
-        security_analysis.tls_observation_count = tls_result.total_observations
-        security_analysis.modern_tls_count = tls_result.modern_tls_count
-        security_analysis.deprecated_tls_count = tls_result.deprecated_tls_count
-        security_analysis.certificate_count = cert_result.total_certificates
-        security_analysis.valid_certificate_count = cert_result.valid_count
-        security_analysis.expired_certificate_count = cert_result.expired_count
-        security_analysis.weak_key_count = cert_result.weak_key_count
-        security_analysis.finding_count = len(findings)
-        security_analysis.critical_count = risk_assessment.get("critical_count", 0)
-        security_analysis.high_count = risk_assessment.get("high_count", 0)
-        security_analysis.medium_count = risk_assessment.get("medium_count", 0)
-        security_analysis.low_count = risk_assessment.get("low_count", 0)
-        security_analysis.risk_score = risk_assessment.get("risk_score", 0.0)
+        # Update counts
+        security_analysis.total_streams = stream_result.total_streams
+        security_analysis.total_sessions = email_result.total_sessions
+        security_analysis.total_tls_observations = tls_result.total_observations
+        security_analysis.total_certificates = cert_result.total_certificates
+        security_analysis.total_findings = findings_result.summary.total_findings
+
+        # Finding severity counts
+        security_analysis.critical_findings = findings_result.summary.critical_count
+        security_analysis.high_findings = findings_result.summary.high_count
+        security_analysis.medium_findings = findings_result.summary.medium_count
+        security_analysis.low_findings = findings_result.summary.low_count
+        security_analysis.info_findings = findings_result.summary.info_count
+
+        # Risk assessment
+        security_analysis.overall_risk_level = risk_assessment.posture.overall_risk.value
+        security_analysis.overall_risk_score = risk_assessment.posture.overall_score
+        security_analysis.confidence = risk_assessment.posture.confidence
+        security_analysis.coverage = risk_assessment.posture.coverage
+
+        # Store detailed data as JSON (for Phase 4 deserialization)
+        security_analysis.tcp_streams = [stream.model_dump() for stream in streams]
+        security_analysis.email_sessions = [session.model_dump() for session in sessions]
+        security_analysis.tls_observations = [obs.model_dump() for obs in tls_observations]
+        security_analysis.certificates = [cert.model_dump() for cert in certificates]
+        security_analysis.findings = [finding.model_dump() for finding in findings]
+        security_analysis.risk_assessment = risk_assessment.model_dump()
+
+        # Status and completion
         security_analysis.status = SecurityAnalysisStatus.COMPLETED
         security_analysis.completed_at = datetime.now(timezone.utc)
+        security_analysis.duration_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
 
         # Complete job
         job.status = JobStatus.COMPLETED
@@ -464,7 +477,7 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
             "job_id": job_id,
             "security_analysis_id": security_analysis.analysis_id,
             "finding_count": len(findings),
-            "risk_score": risk_assessment.get("risk_score", 0.0)
+            "risk_score": risk_assessment.posture.overall_score
         }
 
     except Exception as e:
