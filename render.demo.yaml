@@ -1,0 +1,186 @@
+# =============================================================================
+# SecureMailScope - FREE DEMO Render Blueprint
+# Version: 1.0.0
+# SIH 2026 Demo Deployment (No Celery Worker - Synchronous Execution)
+# =============================================================================
+#
+# IMPORTANT: This is the FREE DEMO configuration
+#
+# Differences from production render.yaml:
+# - NO separate Celery worker service
+# - Uses ANALYSIS_EXECUTION_MODE=demo for synchronous execution
+# - FREE Render plans (with limitations)
+# - Still requires paid PostgreSQL ($7/month starter tier)
+#
+# Note: Render's free tier spins down after inactivity, so there may be
+# cold start delays. For production, use render.yaml instead.
+#
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # Backend API (FastAPI + Demo Mode Analysis)
+  # ===========================================================================
+  - type: web
+    name: securemailscope-demo-api
+    runtime: docker
+    plan: free  # Free tier (512MB RAM, spins down after inactivity)
+    region: singapore
+    dockerfilePath: ./backend/Dockerfile.production
+    dockerContext: ./backend
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: PORT
+        value: 8000
+
+      # Demo Mode - NO Celery worker required
+      - key: ANALYSIS_EXECUTION_MODE
+        value: demo
+
+      # Database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: securemailscope-demo-db
+          property: connectionString
+
+      # Redis (optional in demo mode, but still configured for potential future use)
+      - key: REDIS_URL
+        value: redis://localhost:6379/0
+
+      # Security
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_PASSWORD
+        generateValue: true
+
+      # CORS - UPDATE THIS after Vercel deployment
+      - key: CORS_ORIGINS
+        value: https://securemailscope.vercel.app
+
+      # PCAP Limits (50MB for demo)
+      - key: MAX_PCAP_SIZE_MB
+        value: 50
+
+      # Features
+      - key: ML_ENABLED
+        value: false  # Disabled for free demo
+      - key: BLOCKCHAIN_ENABLED
+        value: false
+
+      # Logging
+      - key: LOG_LEVEL
+        value: INFO
+
+      # Storage - Supabase S3
+      - key: STORAGE_BACKEND
+        value: s3
+      - key: S3_ENDPOINT_URL
+        value: https://aqdzsopxuheuunpifjks.storage.supabase.co/storage/v1/s3
+      - key: S3_ACCESS_KEY_ID
+        sync: false  # Set manually in Render dashboard
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false  # Set manually in Render dashboard
+      - key: S3_BUCKET_NAME
+        value: securemailscope-evidence
+      - key: S3_REGION
+        value: ap-southeast-2
+
+      # Paths
+      - key: EVIDENCE_STORAGE_PATH
+        value: /app/data/evidence
+      - key: REPORTS_STORAGE_PATH
+        value: /app/data/reports
+
+      # TShark
+      - key: TSHARK_TIMEOUT_SECONDS
+        value: 300
+
+    # Pre-deploy: Run database migrations
+    preDeployCommand: alembic upgrade head
+
+databases:
+  # ===========================================================================
+  # PostgreSQL Database (Starter Tier - $7/month minimum)
+  # ===========================================================================
+  # NOTE: Render does not offer a free PostgreSQL tier
+  # This is the cheapest option available
+  - name: securemailscope-demo-db
+    databaseName: securemailscope_demo
+    user: securemailscope_demo
+    plan: starter  # $7/month (1GB storage, 1GB RAM)
+    region: singapore
+    ipAllowList: []  # Allow access from Render services
+
+# =============================================================================
+# DEPLOYMENT INSTRUCTIONS
+# =============================================================================
+#
+# 1. **Supabase S3 Setup** (REQUIRED)
+#    - Create Supabase account (free tier)
+#    - Create bucket: securemailscope-evidence
+#    - Generate API credentials
+#    - Save: Access Key ID, Secret Access Key
+#
+# 2. **Deploy to Render**
+#    - Go to https://dashboard.render.com
+#    - Click "Blueprints" → "New Blueprint Instance"
+#    - Connect your GitHub repository
+#    - Select this repository
+#    - Choose render.demo.yaml as the blueprint file
+#    - Review services (Backend API + PostgreSQL)
+#    - Click "Apply"
+#
+# 3. **Configure S3 Credentials**
+#    After deployment:
+#    - Go to securemailscope-demo-api service
+#    - Click "Environment"
+#    - Set S3_ACCESS_KEY_ID (your Supabase key)
+#    - Set S3_SECRET_ACCESS_KEY (your Supabase secret)
+#    - Save (triggers redeploy)
+#
+# 4. **Deploy Frontend to Vercel**
+#    - Go to https://vercel.com
+#    - Import Git repository
+#    - Select "frontend" as root directory
+#    - Set build command: npm run build
+#    - Set output directory: dist
+#    - Add environment variable:
+#      VITE_API_URL=https://securemailscope-demo-api.onrender.com
+#    - Deploy
+#
+# 5. **Update CORS**
+#    After Vercel deployment:
+#    - Note your Vercel URL (e.g., https://securemailscope.vercel.app)
+#    - Go back to Render backend service
+#    - Update CORS_ORIGINS environment variable
+#    - Save (triggers redeploy)
+#
+# 6. **Get Admin Credentials**
+#    - Go to backend service → Environment
+#    - Find ADMIN_PASSWORD value
+#    - Use username: admin, password: <ADMIN_PASSWORD>
+#
+# 7. **Test**
+#    - Open your Vercel URL
+#    - Login with admin credentials
+#    - Upload a small test PCAP (<50MB)
+#    - Verify analysis completes
+#
+# =============================================================================
+# LIMITATIONS
+# =============================================================================
+#
+# - Free backend spins down after 15 min inactivity (cold start ~30-60s)
+# - Database costs $7/month (cheapest option)
+# - 50MB PCAP limit (Supabase free tier upload limit)
+# - Analysis runs synchronously (may timeout on very large PCAPs)
+# - ML features disabled
+# - No background worker resilience
+#
+# For production use, switch to render.yaml with paid tiers.
+#
+# =============================================================================

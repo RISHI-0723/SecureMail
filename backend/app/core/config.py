@@ -147,6 +147,11 @@ class Settings(BaseSettings):
     ml_enabled: bool = True
     ml_model_path: str = "/app/data/models"
 
+    # Analysis Execution Mode (Phase 5: Demo deployment support)
+    # "celery" = Use Celery worker (production)
+    # "demo" = Synchronous execution without separate worker (free demo)
+    analysis_execution_mode: str = "celery"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

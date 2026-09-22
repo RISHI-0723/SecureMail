@@ -1,6 +1,7 @@
 """Analysis job API endpoints.
 
 Phase 2 adds packet analysis summary and protocol detection endpoints.
+Phase 5 adds demo mode execution support for free deployments.
 """
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -21,6 +22,13 @@ from app.schemas.analysis import (
 )
 from app.schemas.common import ApiResponse
 from app.workers.tasks import analyze_evidence
+from app.core.config import settings
+from app.services.analysis_executor import (
+    execute_phase2_analysis,
+    execute_phase3_analysis,
+    AnalysisExecutionError
+)
+from app.models.analysis_job import generate_job_id, JobType
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -277,18 +285,62 @@ async def trigger_analysis(
 
     # Check job status
     if job.status == JobStatus.QUEUED:
-        # Trigger analysis
-        logger.info(
-            f"Triggering analysis for job {job.job_id}",
-            extra={"job_id": job.job_id, "evidence_id": evidence_id}
-        )
-        analyze_evidence.delay(job.job_id)
+        # Check execution mode
+        execution_mode = settings.analysis_execution_mode.lower()
 
-        return ApiResponse.ok(TriggerAnalysisResponse(
-            job_id=job.job_id,
-            status="TRIGGERED",
-            message="Analysis has been triggered"
-        ))
+        if execution_mode == "demo":
+            # DEMO MODE: Execute synchronously
+            logger.info(
+                f"Triggering DEMO MODE analysis for job {job.job_id}",
+                extra={"job_id": job.job_id, "evidence_id": evidence_id, "mode": "demo"}
+            )
+
+            try:
+                # Execute Phase 2 synchronously
+                phase2_result = execute_phase2_analysis(db, job.job_id)
+
+                # Create Phase 3 job
+                phase3_job_id = generate_job_id()
+                phase3_job = AnalysisJob(
+                    job_id=phase3_job_id,
+                    evidence_id=evidence_id,
+                    job_type=JobType.TLS_ANALYSIS,
+                    status=JobStatus.QUEUED,
+                    stage="QUEUED_FOR_SECURITY_ANALYSIS"
+                )
+                db.add(phase3_job)
+                db.commit()
+
+                # Execute Phase 3 synchronously
+                execute_phase3_analysis(db, phase3_job_id, phase2_result.get("packet_analysis_id"))
+
+                return ApiResponse.ok(TriggerAnalysisResponse(
+                    job_id=job.job_id,
+                    status="COMPLETED",
+                    message="Analysis completed successfully (demo mode)"
+                ))
+
+            except AnalysisExecutionError as e:
+                logger.error(f"Demo mode analysis failed: {e.code} - {e.message}")
+                return ApiResponse.ok(TriggerAnalysisResponse(
+                    job_id=job.job_id,
+                    status="FAILED",
+                    message=f"Analysis failed: {e.message}"
+                ))
+
+        else:
+            # CELERY MODE: Use asynchronous Celery task (production)
+            logger.info(
+                f"Triggering CELERY MODE analysis for job {job.job_id}",
+                extra={"job_id": job.job_id, "evidence_id": evidence_id, "mode": "celery"}
+            )
+            analyze_evidence.delay(job.job_id)
+
+            return ApiResponse.ok(TriggerAnalysisResponse(
+                job_id=job.job_id,
+                status="TRIGGERED",
+                message="Analysis has been triggered"
+            ))
 
     elif job.status == JobStatus.RUNNING:
         return ApiResponse.ok(TriggerAnalysisResponse(

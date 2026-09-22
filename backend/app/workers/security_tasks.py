@@ -44,6 +44,7 @@ from app.services.certificates import CertificateAnalyzer
 from app.services.crypto import RulesEngine, get_default_policy
 from app.services.findings import FindingEngine
 from app.services.risk import RiskEngine
+from app.services.analysis_executor import execute_phase3_analysis, AnalysisExecutionError
 
 logger = logging.getLogger(__name__)
 
