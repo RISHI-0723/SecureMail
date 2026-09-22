@@ -99,8 +99,9 @@ services:
       - key: TSHARK_TIMEOUT_SECONDS
         value: 300
 
-    # Pre-deploy: Run database migrations
-    preDeployCommand: alembic upgrade head
+    # IMPORTANT: Render free tier does NOT support preDeployCommand
+    # Migrations run automatically via demo-startup.sh instead
+    dockerCommand: bash demo-startup.sh
 
 databases:
   # ===========================================================================
