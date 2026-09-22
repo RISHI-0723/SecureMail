@@ -32,21 +32,28 @@ fi
 echo ""
 
 # Step 2: Start FastAPI server with Gunicorn
-echo "[2/2] Starting FastAPI server..."
-echo "   Workers: 4"
-echo "   Timeout: 360s"
+echo "[2/2] Starting FastAPI server (DEMO MODE)..."
+echo "   Configuration: Render Free (512MB RAM, 0.1 CPU)"
+echo "   Workers: 1 (optimized for demo - 4 workers caused OOM)"
+echo "   Timeout: 120s"
 echo "   Bind: 0.0.0.0:8000"
+echo "   Analysis: Background threads (Redis-free)"
 echo "==================================================================="
 echo ""
 
+# CRITICAL: Use ONLY 1 worker for Render Free (512MB RAM)
+# 4 workers = ~400-600MB just for workers = OOM during TShark analysis
+# 1 worker = ~100-150MB = leaves room for TShark subprocess
 exec gunicorn app.main:app \
     --worker-class uvicorn.workers.UvicornWorker \
-    --workers 4 \
+    --workers 1 \
     --bind 0.0.0.0:8000 \
-    --timeout 360 \
+    --timeout 120 \
     --keep-alive 5 \
     --max-requests 1000 \
     --max-requests-jitter 100 \
+    --worker-tmp-dir /dev/shm \
     --access-logfile - \
     --error-logfile - \
-    --capture-output
+    --capture-output \
+    --log-level info
