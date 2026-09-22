@@ -66,6 +66,27 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+
+  // Helper methods to check specific error states
+  isNotFound(): boolean {
+    return this.status === 404;
+  }
+
+  isAnalysisNotStarted(): boolean {
+    return this.code === 'ANALYSIS_NOT_STARTED' || this.code === 'SECURITY_ANALYSIS_NOT_FOUND' || this.code === 'INTELLIGENCE_NOT_FOUND';
+  }
+
+  isAnalysisInProgress(): boolean {
+    return this.code === 'ANALYSIS_IN_PROGRESS' || this.code === 'INTELLIGENCE_IN_PROGRESS';
+  }
+
+  isAnalysisFailed(): boolean {
+    return this.code === 'ANALYSIS_FAILED' || this.code === 'SECURITY_ANALYSIS_FAILED' || this.code === 'INTELLIGENCE_FAILED';
+  }
+
+  isConnectionError(): boolean {
+    return this.code === 'CONNECTION_ERROR';
+  }
 }
 
 async function fetchApi<T>(

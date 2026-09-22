@@ -23,13 +23,6 @@ from app.schemas.analysis import (
 from app.schemas.common import ApiResponse
 from app.workers.tasks import analyze_evidence
 from app.core.config import settings
-from app.services.analysis_executor import (
-    execute_phase2_analysis,
-    execute_phase3_analysis,
-    execute_phase4_analysis,
-    AnalysisExecutionError
-)
-from app.models.analysis_job import generate_job_id, JobType
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -290,59 +283,25 @@ async def trigger_analysis(
         execution_mode = settings.analysis_execution_mode.lower()
 
         if execution_mode == "demo":
-            # DEMO MODE: Execute synchronously
+            # DEMO MODE: Execute in background thread
+            from app.services.demo_executor import demo_executor
+
             logger.info(
                 f"Triggering DEMO MODE analysis for job {job.job_id}",
                 extra={"job_id": job.job_id, "evidence_id": evidence_id, "mode": "demo"}
             )
 
-            try:
-                # Execute Phase 2 synchronously
-                phase2_result = execute_phase2_analysis(db, job.job_id)
+            # Start background execution
+            demo_executor.execute_full_analysis_background(
+                evidence_id=evidence_id,
+                phase2_job_id=job.job_id
+            )
 
-                # Create Phase 3 job
-                phase3_job_id = generate_job_id()
-                phase3_job = AnalysisJob(
-                    job_id=phase3_job_id,
-                    evidence_id=evidence_id,
-                    job_type=JobType.TLS_ANALYSIS,
-                    status=JobStatus.QUEUED,
-                    stage="QUEUED_FOR_SECURITY_ANALYSIS"
-                )
-                db.add(phase3_job)
-                db.commit()
-
-                # Execute Phase 3 synchronously
-                phase3_result = execute_phase3_analysis(db, phase3_job_id, phase2_result.get("packet_analysis_id"))
-
-                # Create Phase 4 job
-                phase4_job_id = generate_job_id()
-                phase4_job = AnalysisJob(
-                    job_id=phase4_job_id,
-                    evidence_id=evidence_id,
-                    job_type=JobType.INTELLIGENCE,
-                    status=JobStatus.QUEUED,
-                    stage="QUEUED_FOR_INTELLIGENCE_ANALYSIS"
-                )
-                db.add(phase4_job)
-                db.commit()
-
-                # Execute Phase 4 synchronously
-                execute_phase4_analysis(db, phase4_job_id, phase3_result.get("security_analysis_id"), enable_ml=False)
-
-                return ApiResponse.ok(TriggerAnalysisResponse(
-                    job_id=job.job_id,
-                    status="COMPLETED",
-                    message="Analysis completed successfully (demo mode: Phase 2-3-4)"
-                ))
-
-            except AnalysisExecutionError as e:
-                logger.error(f"Demo mode analysis failed: {e.code} - {e.message}")
-                return ApiResponse.ok(TriggerAnalysisResponse(
-                    job_id=job.job_id,
-                    status="FAILED",
-                    message=f"Analysis failed: {e.message}"
-                ))
+            return ApiResponse.ok(TriggerAnalysisResponse(
+                job_id=job.job_id,
+                status="TRIGGERED",
+                message="Analysis started in background (demo mode)"
+            ))
 
         else:
             # CELERY MODE: Use asynchronous Celery task (production)

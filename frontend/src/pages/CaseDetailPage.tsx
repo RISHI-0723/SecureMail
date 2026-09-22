@@ -129,11 +129,18 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
           try {
             const findingsResp = await api.getSecurityFindings(ev.evidence_id);
             secFindings[ev.evidence_id] = findingsResp.findings;
-          } catch {
-            // Findings might not exist
+          } catch (err) {
+            // Findings might not exist yet - only log if not expected 404
+            if (err instanceof ApiError && !err.isNotFound()) {
+              console.warn('Failed to load findings:', err.message);
+            }
           }
-        } catch {
+        } catch (err) {
           // Security analysis might not exist yet
+          // Only log unexpected errors
+          if (err instanceof ApiError && !err.isNotFound() && !err.isAnalysisNotStarted() && !err.isAnalysisInProgress()) {
+            console.warn('Unexpected error loading security summary:', err.message);
+          }
         }
 
         // Phase 4: Load intelligence analysis
@@ -145,11 +152,17 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
           try {
             const recsResp = await api.getRecommendations(ev.evidence_id);
             recs[ev.evidence_id] = recsResp.recommendations;
-          } catch {
-            // Recommendations might not exist
+          } catch (err) {
+            // Recommendations might not exist yet
+            if (err instanceof ApiError && !err.isNotFound()) {
+              console.warn('Failed to load recommendations:', err.message);
+            }
           }
-        } catch {
+        } catch (err) {
           // Intelligence analysis might not exist yet
+          if (err instanceof ApiError && !err.isNotFound() && !err.isAnalysisNotStarted() && !err.isAnalysisInProgress()) {
+            console.warn('Unexpected error loading intelligence summary:', err.message);
+          }
         }
       } catch {
         // Ignore errors for individual evidence

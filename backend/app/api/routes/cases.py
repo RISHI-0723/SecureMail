@@ -15,6 +15,7 @@ from app.schemas.case import (
     CaseListResponse,
 )
 from app.schemas.common import ApiResponse
+from app.services.case_service import case_service, CaseServiceError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -236,6 +237,13 @@ async def delete_case(
     """
     Delete a case and all associated evidence.
 
+    This endpoint properly deletes all dependent records including:
+    - Evidence files
+    - Analysis jobs
+    - Packet analyses
+    - Security analyses
+    - Intelligence reports and all Phase 4 data
+
     Args:
         case_id: Case identifier
         db: Database session
@@ -243,26 +251,19 @@ async def delete_case(
     Returns:
         Deletion confirmation
     """
-    case = db.query(Case).filter(Case.case_id == case_id).first()
-    if not case:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "CASE_NOT_FOUND", "message": f"Case not found: {case_id}"}
-        )
+    # Get evidence count before deletion
+    evidence_count = db.query(func.count(PcapEvidence.evidence_id)).filter(
+        PcapEvidence.case_id == case_id
+    ).scalar() or 0
 
     try:
-        # Get evidence for cleanup logging
-        evidence_count = db.query(func.count(PcapEvidence.evidence_id)).filter(
-            PcapEvidence.case_id == case_id
-        ).scalar() or 0
+        deleted = case_service.delete_case(db, case_id)
 
-        db.delete(case)
-        db.commit()
-
-        logger.info(
-            f"Case deleted: {case_id}, evidence removed: {evidence_count}",
-            extra={"case_id": case_id, "evidence_removed": evidence_count}
-        )
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"code": "CASE_NOT_FOUND", "message": f"Case not found: {case_id}"}
+            )
 
         return ApiResponse.ok({
             "deleted": True,
@@ -270,10 +271,18 @@ async def delete_case(
             "evidence_removed": evidence_count
         })
 
-    except Exception as e:
-        db.rollback()
-        logger.error(f"Failed to delete case: {e}")
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404 not found)
+        raise
+    except CaseServiceError as e:
+        logger.error(f"Case deletion failed: {e.code} - {e.message}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"code": "DATABASE_ERROR", "message": "Failed to delete case"}
+            detail={"code": e.code, "message": e.message}
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error deleting case: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "DELETE_FAILED", "message": "Failed to delete case"}
         )

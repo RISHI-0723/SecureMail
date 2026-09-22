@@ -137,6 +137,49 @@ async def lifespan(app: FastAPI):
         finally:
             db.close()
 
+    # Recover stuck jobs from previous run (demo mode or crash)
+    # Skip this in test environments where DB might not be available
+    if not settings.environment.startswith("test"):
+        from app.core.database import SessionLocal
+        from app.models.analysis_job import AnalysisJob, JobStatus
+        from datetime import datetime, timezone
+
+        try:
+            db = SessionLocal()
+            try:
+                # Find jobs that were RUNNING or QUEUED when the process stopped
+                stuck_jobs = db.query(AnalysisJob).filter(
+                    AnalysisJob.status.in_([JobStatus.RUNNING, JobStatus.QUEUED])
+                ).all()
+
+                if stuck_jobs:
+                    logger.info(
+                        f"Found {len(stuck_jobs)} stuck jobs from previous run",
+                        extra={"stuck_count": len(stuck_jobs)}
+                    )
+
+                    for job in stuck_jobs:
+                        # Mark as FAILED with appropriate message
+                        job.status = JobStatus.FAILED
+                        job.error_code = "PROCESS_INTERRUPTED"
+                        job.error_message = "Analysis interrupted by service restart or crash"
+                        job.completed_at = datetime.now(timezone.utc)
+                        logger.info(
+                            f"Marked stuck job as FAILED: {job.job_id}",
+                            extra={
+                                "job_id": job.job_id,
+                                "evidence_id": job.evidence_id,
+                                "stage": job.stage
+                            }
+                        )
+
+                    db.commit()
+                    logger.info(f"Recovered {len(stuck_jobs)} stuck jobs")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Could not recover stuck jobs (DB may be unavailable): {e}")
+
     yield
 
     # Shutdown
