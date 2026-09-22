@@ -438,14 +438,45 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         job.progress_percent = "85"
         db.commit()
 
-        risk_assessment = risk_engine.assess_risk(
-            findings_result=findings_result,
-            total_streams=stream_result.total_streams,
-            total_sessions=email_result.total_sessions,
-            total_certificates=cert_result.total_certificates,
-            confidence="HIGH",
-            coverage="COMPLETE"
-        )
+        # Check if we have email traffic to analyze
+        has_email_traffic = email_result.total_sessions > 0
+
+        if has_email_traffic:
+            # Standard risk assessment when email traffic exists
+            risk_assessment = risk_engine.assess_risk(
+                findings_result=findings_result,
+                total_streams=stream_result.total_streams,
+                total_sessions=email_result.total_sessions,
+                total_certificates=cert_result.total_certificates,
+                confidence="HIGH" if stream_result.total_streams > 0 else "MEDIUM",
+                coverage="COMPLETE" if stream_result.total_streams > 0 else "PARTIAL"
+            )
+            logger.info(
+                f"Phase 3 risk assessment completed: {risk_assessment.overall_risk_level}",
+                extra={
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "risk_level": risk_assessment.overall_risk_level,
+                    "risk_score": risk_assessment.overall_risk_score,
+                    "total_findings": findings_result.summary.total_findings
+                }
+            )
+        else:
+            # No email traffic detected - use empty assessment
+            risk_assessment = risk_engine.assess_empty(
+                evidence_id=job.evidence_id,
+                job_id=job_id,
+                reason="No SMTP, IMAP, or POP3 traffic was detected in the supplied evidence."
+            )
+            logger.info(
+                "Phase 3 completed with no email traffic detected",
+                extra={
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "total_streams": stream_result.total_streams,
+                    "total_packets": packet_analysis.total_packets if packet_analysis else 0
+                }
+            )
 
         # Step 7: Update security analysis with results
         security_analysis.total_streams = stream_result.total_streams
