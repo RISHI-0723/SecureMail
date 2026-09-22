@@ -2,8 +2,9 @@
 
 **Version:** 1.0.0
 **Target:** Public Demo for SIH 2026
-**Cost:** ~$7/month (PostgreSQL only)
+**Cost:** $0/month (100% FREE)
 **Deployment Time:** ~30 minutes
+**PCAP Limit:** 20MB (synchronous execution)
 
 ---
 
@@ -37,7 +38,7 @@ This guide explains how to deploy SecureMailScope as a **publicly accessible web
 
 ### Total Monthly Cost
 
-**~$7/month** (PostgreSQL Starter tier only)
+**$0/month** (100% FREE)
 
 ### Public URL
 
@@ -64,7 +65,7 @@ That works from ANY computer, including SIH judges' machines.
 | Redis | Render Redis (Paid) | Not required |
 | PostgreSQL | Render PostgreSQL (Paid) | Render PostgreSQL ($7/month minimum) |
 | Evidence Storage | S3-compatible | Supabase S3 (FREE) |
-| **Total Cost** | **~$80/month** | **~$7/month** |
+| **Total Cost** | **~$80/month** | **$0/month** |
 
 ### Demo Mode Architecture
 
@@ -105,6 +106,23 @@ Supabase S3 (Evidence Storage - FREE)
 - Ability to copy/paste configuration values
 - NO coding or deployment expertise required
 
+### PCAP Size Limit
+
+**Demo deployment accepts PCAP files up to 20MB.**
+
+**Why 20MB limit?**
+
+The demo deployment executes the complete **Phase 2 → Phase 3 → Phase 4** analysis pipeline **synchronously** within a single HTTP request on Render's free tier web service.
+
+- **Phase 2**: TShark packet extraction + protocol detection (~5-15 seconds for 20MB)
+- **Phase 3**: TCP streams + TLS + certificates + findings (~10-30 seconds)
+- **Phase 4**: Intelligence + correlations + recommendations (~5-10 seconds)
+- **Total**: ~20-55 seconds for 20MB PCAP
+
+Render's free tier has a **120-second HTTP request timeout**. Files larger than 20MB risk exceeding this timeout.
+
+**For production deployments** using Celery workers, the limit is 500MB.
+
 ---
 
 ## Step 1: Supabase Storage Setup
@@ -130,7 +148,7 @@ Supabase provides FREE S3-compatible object storage for evidence files.
    - **Name**: `securemailscope-evidence`
    - **Public bucket**: **UNCHECKED** (IMPORTANT: Keep private)
    - **Allowed MIME types**: Leave empty (allows all)
-   - **File size limit**: `52428800` (50MB)
+   - **File size limit**: `20971520` (20MB)
 4. Click **"Create bucket"**
 
 ### 1.3 Generate S3 API Credentials
@@ -376,9 +394,9 @@ Default credentials:
 2. Create a test case:
    - **Case Name**: `SIH Demo Test`
    - **Description**: `Testing upload and analysis`
-3. Upload a small PCAP file (<50MB):
+3. Upload a test PCAP file (<20MB):
    - Use `sample_pcaps/smtp_starttls_demo.pcap` from your repo
-   - OR use your own test PCAP
+   - OR use your own test PCAP (max 20MB for demo)
 4. Click **"Upload"**
 
 ### 5.4 Verify Analysis
@@ -445,7 +463,7 @@ Password: [from Step 5.1]
 1. Check backend logs for error details
 2. Common causes:
    - S3 storage not configured → Step 2.4
-   - PCAP too large (>50MB) → Use smaller file
+   - PCAP too large (>20MB) → Use smaller file
    - TShark timeout → Increase `TSHARK_TIMEOUT_SECONDS`
 
 ### Upload Fails
@@ -453,7 +471,7 @@ Password: [from Step 5.1]
 **Symptom**: "Upload failed" error
 
 **Solution**:
-1. Check file size (<50MB for demo)
+1. Check file size (<20MB for demo)
 2. Check S3 credentials in backend
 3. Check Supabase bucket exists and is private
 4. Look at backend logs for S3 errors
@@ -481,10 +499,10 @@ Password: [from Step 5.1]
 | Limitation | Impact | Mitigation |
 |-----------|--------|------------|
 | **15-min inactivity spin-down** | Cold start delays (30-60s) | Keep browser tab open during demo |
-| **Synchronous analysis** | May timeout on large PCAPs | Limit uploads to <50MB |
+| **Synchronous analysis** | May timeout on large PCAPs | Limit uploads to 20MB |
 | **No background worker** | Analysis runs in HTTP request | Use demo mode (already configured) |
 | **No Redis** | No job queue resilience | Acceptable for demo purposes |
-| **50MB upload limit** | Can't analyze large captures | Supabase free tier limit |
+| **20MB PCAP limit** | Can't analyze large captures | Synchronous execution constraint |
 | **ML disabled** | No machine learning features | Acceptable for Phase 2-4 demo |
 
 ### Differences from Production
@@ -495,7 +513,7 @@ Password: [from Step 5.1]
 | Redis | ✅ Required | ❌ Not needed |
 | ML Analysis | ✅ Enabled | ❌ Disabled |
 | Always-On | ✅ 24/7 | ❌ Spins down |
-| PCAP Limit | 500MB | 50MB |
+| PCAP Limit | 500MB | 20MB |
 | Cost | ~$80/month | ~$7/month |
 
 ---

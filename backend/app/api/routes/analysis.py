@@ -26,6 +26,7 @@ from app.core.config import settings
 from app.services.analysis_executor import (
     execute_phase2_analysis,
     execute_phase3_analysis,
+    execute_phase4_analysis,
     AnalysisExecutionError
 )
 from app.models.analysis_job import generate_job_id, JobType
@@ -312,12 +313,27 @@ async def trigger_analysis(
                 db.commit()
 
                 # Execute Phase 3 synchronously
-                execute_phase3_analysis(db, phase3_job_id, phase2_result.get("packet_analysis_id"))
+                phase3_result = execute_phase3_analysis(db, phase3_job_id, phase2_result.get("packet_analysis_id"))
+
+                # Create Phase 4 job
+                phase4_job_id = generate_job_id()
+                phase4_job = AnalysisJob(
+                    job_id=phase4_job_id,
+                    evidence_id=evidence_id,
+                    job_type=JobType.INTELLIGENCE,
+                    status=JobStatus.QUEUED,
+                    stage="QUEUED_FOR_INTELLIGENCE_ANALYSIS"
+                )
+                db.add(phase4_job)
+                db.commit()
+
+                # Execute Phase 4 synchronously
+                execute_phase4_analysis(db, phase4_job_id, phase3_result.get("security_analysis_id"), enable_ml=False)
 
                 return ApiResponse.ok(TriggerAnalysisResponse(
                     job_id=job.job_id,
                     status="COMPLETED",
-                    message="Analysis completed successfully (demo mode)"
+                    message="Analysis completed successfully (demo mode: Phase 2-3-4)"
                 ))
 
             except AnalysisExecutionError as e:

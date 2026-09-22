@@ -501,6 +501,207 @@ def _fail_job(db: Session, job: AnalysisJob, error_code: str, error_message: str
     )
 
 
+def execute_phase4_analysis(
+    db: Session,
+    job_id: str,
+    security_analysis_id: Optional[str] = None,
+    enable_ml: bool = False
+) -> Dict[str, Any]:
+    """
+    Execute Phase 4 intelligence analysis.
+
+    This is the core Phase 4 logic for demo mode.
+    Can be called synchronously or asynchronously.
+
+    Args:
+        db: Database session
+        job_id: Analysis job identifier
+        security_analysis_id: Optional Phase 3 SecurityAnalysis ID
+        enable_ml: Whether to run ML (disabled for demo by default)
+
+    Returns:
+        Analysis result dictionary
+
+    Raises:
+        AnalysisExecutionError: If analysis fails
+    """
+    from app.models.intelligence import IntelligenceReport
+    from app.services.intelligence import IntelligenceAggregator
+    from app.services.intelligence.correlation_engine import CorrelationEngine
+    from app.services.intelligence.recommendation_engine import RecommendationEngine
+    from app.services.findings.models import SecurityFinding, FindingsResult, FindingSummary
+    from app.services.tls.models import TlsObservation
+    from app.services.certificates.models import CertificateObservation
+    from app.services.email.models import EmailSecuritySession
+    from app.services.risk.models import RiskAssessment
+
+    job = None
+    intelligence_report = None
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        # Get the analysis job
+        job = db.query(AnalysisJob).filter(AnalysisJob.job_id == job_id).first()
+        if not job:
+            raise AnalysisExecutionError(
+                "ANALYSIS_JOB_NOT_FOUND",
+                f"Job not found: {job_id}"
+            )
+
+        # Update job to RUNNING
+        job.status = JobStatus.RUNNING
+        job.started_at = start_time
+        job.stage = "INITIALIZING_INTELLIGENCE_ANALYSIS"
+        db.commit()
+
+        # Get Phase 3 security analysis results
+        security_analysis = None
+        if security_analysis_id:
+            security_analysis = db.query(SecurityAnalysis).filter(
+                SecurityAnalysis.analysis_id == security_analysis_id
+            ).first()
+        else:
+            security_analysis = db.query(SecurityAnalysis).filter(
+                SecurityAnalysis.evidence_id == job.evidence_id,
+                SecurityAnalysis.status == SecurityAnalysisStatus.COMPLETED
+            ).order_by(SecurityAnalysis.completed_at.desc()).first()
+
+        if not security_analysis:
+            raise AnalysisExecutionError(
+                "PHASE3_NOT_FOUND",
+                "No completed Phase 3 security analysis found"
+            )
+
+        # Create IntelligenceReport record
+        intelligence_report = IntelligenceReport(
+            job_id=job_id,
+            evidence_id=job.evidence_id,
+            security_analysis_id=security_analysis.analysis_id,
+            ml_enabled=enable_ml,
+            created_at=start_time,
+        )
+        db.add(intelligence_report)
+        db.commit()
+
+        logger.info(
+            f"Starting intelligence analysis for job {job_id}",
+            extra={"job_id": job_id, "evidence_id": job.evidence_id}
+        )
+
+        # Deserialize Phase 3 data
+        findings = [SecurityFinding(**f) for f in (security_analysis.findings or [])]
+        tls_observations = [TlsObservation(**o) for o in (security_analysis.tls_observations or [])]
+        certificates = [CertificateObservation(**c) for c in (security_analysis.certificates or [])]
+        sessions = [EmailSecuritySession(**s) for s in (security_analysis.email_sessions or [])]
+        risk_assessment = None
+        if security_analysis.risk_assessment:
+            risk_assessment = RiskAssessment(**security_analysis.risk_assessment)
+
+        # Build findings result
+        findings_result = FindingsResult(
+            evidence_id=job.evidence_id,
+            job_id=job_id,
+            findings=findings,
+            summary=FindingSummary(
+                total_findings=len(findings),
+                critical_count=security_analysis.critical_findings or 0,
+                high_count=security_analysis.high_findings or 0,
+                medium_count=security_analysis.medium_findings or 0,
+                low_count=security_analysis.low_findings or 0,
+                info_count=security_analysis.info_findings or 0,
+            ),
+            streams_analyzed=security_analysis.total_streams or 0,
+            sessions_analyzed=security_analysis.total_sessions or 0,
+            certificates_analyzed=security_analysis.total_certificates or 0,
+        )
+
+        # Step 1: Intelligence Aggregation
+        job.stage = "AGGREGATING_INTELLIGENCE"
+        job.progress_percent = "10"
+        db.commit()
+
+        aggregator = IntelligenceAggregator()
+        aggregated_findings, posture, summary = aggregator.aggregate_findings(
+            findings_result, risk_assessment
+        )
+
+        # Step 2: Correlation Engine
+        job.stage = "FINDING_CORRELATIONS"
+        job.progress_percent = "30"
+        db.commit()
+
+        correlation_engine = CorrelationEngine()
+        correlations = correlation_engine.find_correlations(
+            findings, tls_observations, certificates, sessions
+        )
+
+        # Step 3: Recommendation Engine
+        job.stage = "GENERATING_RECOMMENDATIONS"
+        job.progress_percent = "50"
+        db.commit()
+
+        recommendation_engine = RecommendationEngine()
+        recommendations = recommendation_engine.generate_recommendations(
+            aggregated_findings, correlations, posture, findings
+        )
+
+        # Step 4: Update intelligence report (skip ML for demo)
+        job.stage = "FINALIZING_INTELLIGENCE"
+        job.progress_percent = "80"
+        db.commit()
+
+        intelligence_report.posture = posture.model_dump()
+        intelligence_report.summary = summary.model_dump()
+        intelligence_report.aggregated_findings = [f.model_dump() for f in aggregated_findings]
+        intelligence_report.correlations = [c.model_dump() for c in correlations]
+        intelligence_report.recommendations = [r.model_dump() for r in recommendations]
+        intelligence_report.ml_insights = {"ml_enabled": False, "summary": "ML disabled for demo mode"}
+        intelligence_report.completed_at = datetime.now(timezone.utc)
+
+        # Complete job
+        job.status = JobStatus.COMPLETED
+        job.completed_at = datetime.now(timezone.utc)
+        job.stage = "COMPLETED"
+        job.progress_percent = "100"
+        db.commit()
+
+        logger.info(
+            f"Phase 4 intelligence analysis completed successfully for job {job_id}",
+            extra={
+                "job_id": job_id,
+                "posture_grade": posture.grade.value,
+                "recommendations": len(recommendations)
+            }
+        )
+
+        return {
+            "status": "COMPLETED",
+            "job_id": job_id,
+            "intelligence_report_id": intelligence_report.report_id,
+            "posture_grade": posture.grade.value,
+            "recommendation_count": len(recommendations)
+        }
+
+    except Exception as e:
+        logger.error(f"Phase 4 analysis failed: {e}", exc_info=True)
+
+        # Mark job as failed
+        if job:
+            job.status = JobStatus.FAILED
+            job.error_code = "INTELLIGENCE_ANALYSIS_FAILED"
+            job.error_message = str(e)[:500]
+            job.completed_at = datetime.now(timezone.utc)
+
+        if intelligence_report:
+            intelligence_report.completed_at = datetime.now(timezone.utc)
+
+        db.commit()
+
+        if isinstance(e, AnalysisExecutionError):
+            raise
+        raise AnalysisExecutionError("INTELLIGENCE_ANALYSIS_FAILED", str(e))
+
+
 def _session_candidates_to_packets(session_candidates: list) -> list:
     """Convert session candidates back to packet records for stream reconstruction."""
     from app.services.packet.models import PacketRecord, ProtocolSessionCandidate
