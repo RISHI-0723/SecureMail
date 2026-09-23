@@ -1,5 +1,6 @@
 """Tests for health check endpoints."""
 import pytest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 
@@ -45,3 +46,27 @@ def test_dependencies_health_check_structure(client: TestClient):
         assert "name" in dep
         assert "status" in dep
         assert dep["status"] in ["healthy", "unhealthy", "unknown"]
+
+
+def test_dependencies_health_demo_mode(client: TestClient):
+    """Test dependencies health endpoint in demo mode (Redis unavailable)."""
+    from app.core.config import settings
+
+    # Test with demo mode setting
+    with patch.object(settings, 'analysis_execution_mode', 'demo'):
+        response = client.get("/api/v1/health/dependencies")
+
+        # Should return 200 even with Redis unavailable in demo mode
+        assert response.status_code == 200
+        data = response.json()
+
+        # Overall status should be degraded (not healthy, not unhealthy)
+        assert data["status"] in ["healthy", "degraded"]
+
+        # Find Redis dependency
+        redis_dep = next((d for d in data["dependencies"] if d["name"] == "Redis"), None)
+        assert redis_dep is not None
+
+        # Redis should be marked as "unknown" in demo mode
+        assert redis_dep["status"] == "unknown"
+        assert "not required" in redis_dep["message"].lower() or "demo" in redis_dep["message"].lower()

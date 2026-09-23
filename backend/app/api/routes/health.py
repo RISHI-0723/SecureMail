@@ -104,7 +104,7 @@ def _check_redis() -> DependencyStatus:
     if settings.analysis_execution_mode == "demo":
         return DependencyStatus(
             name="Redis",
-            status="degraded",
+            status="unknown",
             message="Redis not required in demo mode"
         )
 

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Analysis Report - test.pcap</title>
+    <style>
+        :root {
+            --primary: #1a365d;
+            --secondary: #2d3748;
+            --accent: #3182ce;
+            --danger: #e53e3e;
+            --warning: #dd6b20;
+            --success: #38a169;
+            --info: #3182ce;
+            --bg: #f7fafc;
+            --card-bg: #ffffff;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--secondary);
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: var(--primary);
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+        .header h1 {
+            margin: 0 0 10px 0;
+            font-size: 2em;
+        }
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        .card {
+            background: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 25px;
+            margin-bottom: 25px;
+        }
+        .card h2 {
+            color: var(--primary);
+            margin-top: 0;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .posture-grade {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            font-size: 2.5em;
+            font-weight: bold;
+            color: white;
+        }
+        .grade-A { background: var(--success); }
+        .grade-B { background: #68d391; }
+        .grade-C { background: var(--warning); }
+        .grade-D { background: #ed8936; }
+        .grade-F { background: var(--danger); }
+        .severity-critical { color: var(--danger); font-weight: bold; }
+        .severity-high { color: #c53030; }
+        .severity-medium { color: var(--warning); }
+        .severity-low { color: #718096; }
+        .severity-info { color: var(--info); }
+        .finding {
+            border-left: 4px solid #e2e8f0;
+            padding: 15px;
+            margin: 15px 0;
+            background: #f8fafc;
+        }
+        .finding-critical { border-color: var(--danger); }
+        .finding-high { border-color: #c53030; }
+        .finding-medium { border-color: var(--warning); }
+        .finding-low { border-color: #718096; }
+        .finding h3 {
+            margin: 0 0 10px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        .badge-critical { background: #fed7d7; color: var(--danger); }
+        .badge-high { background: #fee2e2; color: #c53030; }
+        .badge-medium { background: #feebc8; color: var(--warning); }
+        .badge-low { background: #e2e8f0; color: #4a5568; }
+        .dimension {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .dimension-label {
+            width: 200px;
+            font-weight: 500;
+        }
+        .dimension-bar {
+            flex: 1;
+            height: 24px;
+            background: #e2e8f0;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .dimension-fill {
+            height: 100%;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 10px;
+            color: white;
+            font-weight: 500;
+            font-size: 0.9em;
+        }
+        .recommendation {
+            padding: 15px;
+            margin: 15px 0;
+            background: #edf2f7;
+            border-radius: 8px;
+        }
+        .recommendation h3 {
+            margin: 0 0 10px 0;
+            color: var(--primary);
+        }
+        .steps {
+            padding-left: 20px;
+        }
+        .steps li {
+            margin: 5px 0;
+        }
+        .integrity-hash {
+            font-family: monospace;
+            background: #edf2f7;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            word-break: break-all;
+        }
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .meta-item {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 6px;
+        }
+        .meta-item label {
+            display: block;
+            font-size: 0.85em;
+            color: #718096;
+            margin-bottom: 5px;
+        }
+        .meta-item value {
+            display: block;
+            font-weight: 500;
+        }
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: #718096;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <div class="header">
+            <h1>Security Analysis Report</h1>
+            <div class="subtitle">Security Analysis Report - test.pcap</div>
+        </div>
+        
+
+        <div class="card">
+            <h2>Executive Summary</h2>
+            <pre style="white-space: pre-wrap;">Security Posture: Grade A (Score: 100/100)
+No security findings were identified in the analyzed evidence.
+
+Analysis Coverage:
+  - Streams analyzed: 0
+  - Sessions analyzed: 0
+  - Certificates analyzed: 0</pre>
+        </div>
+        
+
+        <div class="card">
+            <h2>Security Posture</h2>
+            <div style="display: flex; align-items: center; gap: 30px; margin-bottom: 20px;">
+                <div class="posture-grade grade-A">A</div>
+                <div>
+                    <div style="font-size: 1.5em; font-weight: bold;">
+                        Score: 100/100
+                    </div>
+                </div>
+            </div>
+            
+            <div class="dimension">
+                <div class="dimension-label">TLS Security</div>
+                <div class="dimension-bar">
+                    <div class="dimension-fill" style="width: 100.0%; background: #38a169;">
+                        100
+                    </div>
+                </div>
+            </div>
+            
+
+            <div class="dimension">
+                <div class="dimension-label">Certificate Security</div>
+                <div class="dimension-bar">
+                    <div class="dimension-fill" style="width: 100.0%; background: #38a169;">
+                        100
+                    </div>
+                </div>
+            </div>
+            
+
+            <div class="dimension">
+                <div class="dimension-label">Protocol Security</div>
+                <div class="dimension-bar">
+                    <div class="dimension-fill" style="width: 100.0%; background: #38a169;">
+                        100
+                    </div>
+                </div>
+            </div>
+            
+
+            <div class="dimension">
+                <div class="dimension-label">Configuration Security</div>
+                <div class="dimension-bar">
+                    <div class="dimension-fill" style="width: 100.0%; background: #38a169;">
+                        100
+                    </div>
+                </div>
+            </div>
+            
+        </div>
+        
+<div class="card"><h2>Security Findings</h2>
+<p>No security findings were identified.</p>
+</div>
+
+        <div class="card">
+            <h2>Evidence Integrity</h2>
+            <p><strong>SHA-256:</strong></p>
+            <div class="integrity-hash">test_hash</div>
+            <p style="margin-top: 15px;"><strong>Analysis Hash:</strong></p><div class="integrity-hash">654c3902d81c6b19dfd980b7fb4290085c0ce2c1ce809841f16372992a1f317c</div>
+        </div>
+        
+    </div>
+    <footer>
+        Generated by SecureMailScope v0.5.0 | 2026-09-23 10:28:30 UTC
+    </footer>
+</body>
+</html>
