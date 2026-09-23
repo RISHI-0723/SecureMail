@@ -342,6 +342,16 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
             )
 
         # Create SecurityAnalysis record
+        logger.info(
+            "SECURITY_ANALYSIS_CREATE_STARTED",
+            extra={
+                "event": "SECURITY_ANALYSIS_CREATE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3"
+            }
+        )
+
         security_analysis = SecurityAnalysis(
             job_id=job_id,
             evidence_id=job.evidence_id,
@@ -352,6 +362,18 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         )
         db.add(security_analysis)
         db.commit()
+
+        logger.info(
+            "SECURITY_ANALYSIS_CREATED",
+            extra={
+                "event": "SECURITY_ANALYSIS_CREATED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "analysis_id": security_analysis.analysis_id,
+                "status": security_analysis.status.value,
+                "phase": "PHASE3"
+            }
+        )
 
         logger.info(
             f"Starting security analysis for job {job_id}",
@@ -636,6 +658,19 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
             datetime.now(timezone.utc) - start_time
         ).total_seconds()
 
+        logger.info(
+            "SECURITY_ANALYSIS_STATUS_UPDATE_STARTED",
+            extra={
+                "event": "SECURITY_ANALYSIS_STATUS_UPDATE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "analysis_id": security_analysis.analysis_id,
+                "old_status": security_analysis.status.value,
+                "new_status": "COMPLETED",
+                "phase": "PHASE3"
+            }
+        )
+
         security_analysis.status = SecurityAnalysisStatus.COMPLETED
         security_analysis.completed_at = datetime.now(timezone.utc)
 
@@ -826,6 +861,17 @@ def execute_phase4_analysis(
             )
 
         # Create IntelligenceReport record
+        logger.info(
+            "INTELLIGENCE_REPORT_CREATE_STARTED",
+            extra={
+                "event": "INTELLIGENCE_REPORT_CREATE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "security_analysis_id": security_analysis.analysis_id,
+                "phase": "PHASE4"
+            }
+        )
+
         intelligence_report = IntelligenceReport(
             job_id=job_id,
             evidence_id=job.evidence_id,
@@ -835,6 +881,18 @@ def execute_phase4_analysis(
         )
         db.add(intelligence_report)
         db.commit()
+
+        logger.info(
+            "INTELLIGENCE_REPORT_CREATED",
+            extra={
+                "event": "INTELLIGENCE_REPORT_CREATED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "report_id": intelligence_report.report_id,
+                "status": intelligence_report.status.value if hasattr(intelligence_report, 'status') else "UNKNOWN",
+                "phase": "PHASE4"
+            }
+        )
 
         logger.info(
             f"Starting intelligence analysis for job {job_id}",
@@ -1128,6 +1186,19 @@ def execute_phase4_analysis(
         # Set timestamps and duration
         intelligence_report.completed_at = datetime.now(timezone.utc)
         intelligence_report.duration_seconds = duration
+
+        logger.info(
+            "INTELLIGENCE_REPORT_STATUS_UPDATE_STARTED",
+            extra={
+                "event": "INTELLIGENCE_REPORT_STATUS_UPDATE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "report_id": intelligence_report.report_id,
+                "old_status": intelligence_report.status.value if hasattr(intelligence_report, 'status') else "UNKNOWN",
+                "new_status": "COMPLETED",
+                "phase": "PHASE4"
+            }
+        )
 
         # CRITICAL: Set status to COMPLETED so frontend can retrieve the report
         intelligence_report.status = IntelligenceStatus.COMPLETED
