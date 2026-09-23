@@ -1,0 +1,64 @@
+{
+  "metadata": {
+    "report_id": "rep_5a8882104b85",
+    "title": "Security Analysis Report - test.pcap",
+    "generated_at": "2026-09-23T04:27:42.106040Z",
+    "evidence_id": "ev_4e9a51f1e96d",
+    "job_id": "job_9d1f499c5e6f",
+    "case_name": null,
+    "format": "JSON",
+    "version": "1.0",
+    "generator": "SecureMailScope",
+    "generator_version": "0.5.0"
+  },
+  "executive_summary": "Security Posture: Grade A (Score: 100/100)\nNo security findings were identified in the analyzed evidence.\n\nAnalysis Coverage:\n  - Streams analyzed: 0\n  - Sessions analyzed: 0\n  - Certificates analyzed: 0",
+  "evidence": {
+    "evidence_id": "ev_4e9a51f1e96d",
+    "original_filename": "test.pcap",
+    "sha256": "test_hash",
+    "file_size_bytes": 1000,
+    "upload_timestamp": "2026-09-23T04:27:41.674602",
+    "packets_analyzed": 0,
+    "streams_analyzed": 0,
+    "sessions_analyzed": 0,
+    "certificates_analyzed": 0
+  },
+  "security_posture": {
+    "overall_score": 100.0,
+    "grade": "A",
+    "tls_security_score": 100.0,
+    "certificate_security_score": 100.0,
+    "protocol_security_score": 100.0,
+    "configuration_security_score": 100.0,
+    "risk_factors": [],
+    "strengths": [
+      "Tls Security: Score 100/100",
+      "Certificate Security: Score 100/100",
+      "Protocol Security: Score 100/100",
+      "Configuration Security: Score 100/100"
+    ]
+  },
+  "critical_findings": [],
+  "high_findings": [],
+  "medium_findings": [],
+  "low_findings": [],
+  "info_findings": [],
+  "recommendations": [],
+  "correlations": [],
+  "ml_insights": null,
+  "integrity": {
+    "evidence_sha256": "test_hash",
+    "evidence_sha512": null,
+    "analysis_hash": "90d54755a34c05a867c091fdf8cb6d44a90fc0849bcf39e9b4b44017d1b4a630",
+    "report_hash": null,
+    "blockchain_anchored": false,
+    "transaction_hash": null,
+    "anchor_timestamp": null
+  },
+  "limitations": [
+    "No TCP streams were reconstructed from the evidence.",
+    "No email sessions were detected in the evidence.",
+    "ML-based anomaly detection was not performed."
+  ],
+  "notes": []
+}

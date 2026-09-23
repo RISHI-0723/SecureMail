@@ -94,9 +94,21 @@ def _check_postgres(db: Session) -> DependencyStatus:
 def _check_redis() -> DependencyStatus:
     """Check Redis connection.
 
+    In demo mode (when analysis_execution_mode == "demo"), Redis is optional.
+    In Celery mode, Redis is required.
+
     Returns:
         Redis health status
     """
+    # Demo mode: Redis is optional
+    if settings.analysis_execution_mode == "demo":
+        return DependencyStatus(
+            name="Redis",
+            status="degraded",
+            message="Redis not required in demo mode"
+        )
+
+    # Celery mode: Redis is required
     try:
         redis_client = redis.from_url(settings.redis_url, socket_connect_timeout=2)
         redis_client.ping()

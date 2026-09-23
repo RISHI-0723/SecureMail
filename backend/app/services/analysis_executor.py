@@ -68,6 +68,7 @@ def execute_phase2_analysis(db: Session, job_id: str) -> Dict[str, Any]:
     job = None
     temp_file_cleanup = False
     evidence_path = None
+    start_time = datetime.now(timezone.utc)
 
     try:
         # Get the analysis job
@@ -80,9 +81,19 @@ def execute_phase2_analysis(db: Session, job_id: str) -> Dict[str, Any]:
 
         # Update job to RUNNING
         job.status = JobStatus.RUNNING
-        job.started_at = datetime.now(timezone.utc)
+        job.started_at = start_time
         job.stage = "INITIALIZING"
         db.commit()
+
+        logger.info(
+            "PHASE2_STARTED",
+            extra={
+                "event": "PHASE2_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE2"
+            }
+        )
 
         # Get evidence
         evidence = db.query(PcapEvidence).filter(
@@ -242,15 +253,45 @@ def execute_phase2_analysis(db: Session, job_id: str) -> Dict[str, Any]:
         job.progress_percent = "100"
         job.error_code = None
         job.error_message = None
-        db.commit()
 
         logger.info(
-            f"Phase 2 analysis completed successfully for job {job_id}",
+            "DATABASE_COMMIT_STARTED",
             extra={
+                "event": "DATABASE_COMMIT_STARTED",
                 "job_id": job_id,
                 "evidence_id": job.evidence_id,
+                "phase": "PHASE2"
+            }
+        )
+
+        commit_start_time = datetime.now(timezone.utc)
+        db.commit()
+        commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
+
+        logger.info(
+            "DATABASE_COMMIT_COMPLETED",
+            extra={
+                "event": "DATABASE_COMMIT_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE2",
+                "commit_duration_seconds": commit_duration
+            }
+        )
+
+        total_phase2_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "PHASE2_COMPLETED",
+            extra={
+                "event": "PHASE2_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE2",
                 "total_packets": total_packets,
                 "email_packets": email_packets,
+                "protocols_detected": protocols_detected,
+                "total_duration_seconds": total_phase2_duration
             }
         )
 
@@ -625,38 +666,89 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
 
         persist_start_time = datetime.now(timezone.utc)
 
-        security_analysis.tcp_streams = [
-            stream.model_dump()
-            for stream in streams
-        ]
+        # Check for timeout before heavy serialization
+        elapsed_seconds = (datetime.now(timezone.utc) - start_time).total_seconds()
+        if elapsed_seconds > settings.phase3_timeout_seconds:
+            raise AnalysisExecutionError(
+                "PHASE3_TIMEOUT",
+                f"Phase 3 exceeded timeout of {settings.phase3_timeout_seconds}s"
+            )
 
-        security_analysis.email_sessions = [
-            session.model_dump()
-            for session in sessions
-        ]
+        try:
+            logger.info(
+                "SERIALIZATION_STARTED",
+                extra={
+                    "event": "SERIALIZATION_STARTED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3"
+                }
+            )
 
-        security_analysis.tls_observations = [
-            observation.model_dump()
-            for observation in tls_observations
-        ]
+            serialization_start = datetime.now(timezone.utc)
 
-        security_analysis.certificates = [
-            certificate.model_dump()
-            for certificate in certificates
-        ]
+            security_analysis.tcp_streams = [
+                stream.model_dump()
+                for stream in streams
+            ]
 
-        security_analysis.findings = [
-            finding.model_dump()
-            for finding in findings
-        ]
+            security_analysis.email_sessions = [
+                session.model_dump()
+                for session in sessions
+            ]
 
-        security_analysis.risk_assessment = (
-            risk_assessment.model_dump()
-        )
+            security_analysis.tls_observations = [
+                observation.model_dump()
+                for observation in tls_observations
+            ]
 
-        security_analysis.duration_seconds = (
-            datetime.now(timezone.utc) - start_time
-        ).total_seconds()
+            security_analysis.certificates = [
+                certificate.model_dump()
+                for certificate in certificates
+            ]
+
+            security_analysis.findings = [
+                finding.model_dump()
+                for finding in findings
+            ]
+
+            security_analysis.risk_assessment = (
+                risk_assessment.model_dump()
+            )
+
+            security_analysis.duration_seconds = (
+                datetime.now(timezone.utc) - start_time
+            ).total_seconds()
+
+            serialization_duration = (datetime.now(timezone.utc) - serialization_start).total_seconds()
+
+            logger.info(
+                "SERIALIZATION_COMPLETED",
+                extra={
+                    "event": "SERIALIZATION_COMPLETED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "serialization_duration_seconds": serialization_duration
+                }
+            )
+
+        except Exception as e:
+            logger.error(
+                "SERIALIZATION_FAILED",
+                extra={
+                    "event": "SERIALIZATION_FAILED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "error": str(e)[:500]
+                },
+                exc_info=True
+            )
+            raise AnalysisExecutionError(
+                "SERIALIZATION_FAILED",
+                f"Failed to serialize analysis results: {str(e)[:200]}"
+            )
 
         logger.info(
             "SECURITY_ANALYSIS_STATUS_UPDATE_STARTED",

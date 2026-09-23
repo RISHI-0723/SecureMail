@@ -265,9 +265,15 @@ async def generate_case_report(
     Returns:
         Report ID and download URL
     """
+    logger.info(
+        f"Report request for case {case_id} in format {request.format}",
+        extra={"case_id": case_id, "format": request.format}
+    )
+
     # Verify case exists
     case = db.query(Case).filter(Case.case_id == case_id).first()
     if not case:
+        logger.warning(f"Case not found: {case_id}", extra={"case_id": case_id})
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"code": "CASE_NOT_FOUND", "message": f"Case not found: {case_id}"}
@@ -276,6 +282,10 @@ async def generate_case_report(
     # Validate format
     format_lower = request.format.lower()
     if format_lower not in ["json", "html", "pdf"]:
+        logger.warning(
+            f"Invalid report format requested: {request.format}",
+            extra={"case_id": case_id, "format": request.format}
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "INVALID_FORMAT", "message": f"Invalid format: {request.format}. Must be json, html, or pdf."}
@@ -295,7 +305,16 @@ async def generate_case_report(
             PcapEvidence.case_id == case_id
         ).all()
 
+        logger.info(
+            f"Found {len(evidence_list)} evidence files for case {case_id}",
+            extra={"case_id": case_id, "evidence_count": len(evidence_list)}
+        )
+
         if not evidence_list:
+            logger.warning(
+                f"No evidence found for case {case_id}",
+                extra={"case_id": case_id}
+            )
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail={
@@ -306,6 +325,14 @@ async def generate_case_report(
 
         # Find first completed intelligence report for any evidence in this case
         for evidence in evidence_list:
+            logger.info(
+                f"Checking evidence {evidence.evidence_id} for completed intelligence report",
+                extra={
+                    "case_id": case_id,
+                    "evidence_id": evidence.evidence_id
+                }
+            )
+
             # Get latest completed intelligence report for this evidence
             intel_report = db.query(IntelligenceReport).filter(
                 IntelligenceReport.evidence_id == evidence.evidence_id,
@@ -313,7 +340,23 @@ async def generate_case_report(
             ).order_by(IntelligenceReport.completed_at.desc()).first()
 
             if not intel_report:
+                logger.info(
+                    f"No completed intelligence report for evidence {evidence.evidence_id}",
+                    extra={
+                        "case_id": case_id,
+                        "evidence_id": evidence.evidence_id
+                    }
+                )
                 continue
+
+            logger.info(
+                f"Found completed intelligence report {intel_report.report_id}",
+                extra={
+                    "case_id": case_id,
+                    "evidence_id": evidence.evidence_id,
+                    "report_id": intel_report.report_id
+                }
+            )
 
             # Find existing generated report in requested format
             generated_report = db.query(GeneratedReport).filter(
@@ -321,26 +364,57 @@ async def generate_case_report(
                 GeneratedReport.format == db_format
             ).first()
 
-            if generated_report and generated_report.filename:
-                # Return existing report
-                download_url = f"/api/v1/reports/{generated_report.report_id}/download"
-
+            if not generated_report:
                 logger.info(
-                    f"Returning existing {format_lower} report for case {case_id}",
+                    f"No {format_lower} report generated for intelligence report {intel_report.report_id}",
+                    extra={
+                        "case_id": case_id,
+                        "evidence_id": evidence.evidence_id,
+                        "report_id": intel_report.report_id,
+                        "format": format_lower
+                    }
+                )
+                continue
+
+            if not generated_report.filename:
+                logger.warning(
+                    f"Generated report {generated_report.report_id} has no filename",
                     extra={
                         "case_id": case_id,
                         "report_id": generated_report.report_id,
                         "format": format_lower
                     }
                 )
+                continue
 
-                return ApiResponse.ok(ReportGenerationResponse(
-                    report_id=generated_report.report_id,
-                    download_url=download_url,
-                    format=format_lower
-                ))
+            # Return existing report
+            download_url = f"/api/v1/reports/{generated_report.report_id}/download"
+
+            logger.info(
+                f"Returning existing {format_lower} report for case {case_id}",
+                extra={
+                    "case_id": case_id,
+                    "report_id": generated_report.report_id,
+                    "format": format_lower,
+                    "filename": generated_report.filename
+                }
+            )
+
+            return ApiResponse.ok(ReportGenerationResponse(
+                report_id=generated_report.report_id,
+                download_url=download_url,
+                format=format_lower
+            ))
 
         # No completed reports found
+        logger.warning(
+            f"No completed {format_lower} reports available for case {case_id}",
+            extra={
+                "case_id": case_id,
+                "format": format_lower,
+                "evidence_count": len(evidence_list)
+            }
+        )
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={

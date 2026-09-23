@@ -94,6 +94,9 @@ class Settings(BaseSettings):
     tshark_binary: str = "tshark"
     tshark_timeout_seconds: int = 300
 
+    # Phase 3 Configuration
+    phase3_timeout_seconds: int = 600  # 10 minutes max for security analysis
+
     # Logging
     log_level: str = "INFO"
 

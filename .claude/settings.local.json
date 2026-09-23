@@ -28,7 +28,16 @@
       "Bash(__NEW_LINE_51619dd57c33f2a8__ echo \"\")",
       "Bash(__NEW_LINE_6cd2afe9632ec403__ echo \"\")",
       "Bash(ls:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(git check-ignore:*)",
+      "Bash(npm --prefix frontend run build)",
+      "Bash(chmod:*)",
+      "Bash(git push:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(echo:*)",
+      "Bash(with available evidence, report UNKNOWN rather than guessing.\"\n\nFIXES:\n\n1. Phase 3 Risk Assessment \\(analysis_executor.py\\):\n   - Check if email_result.total_sessions > 0 before risk calculation\n   - Use RiskEngine.assess_empty\\(\\) when no email traffic exists\n   - Returns risk_level=UNKNOWN instead of MINIMAL for non-email PCAPs\n   - Adjusts confidence/coverage based on actual evidence availability\n   - Adds detailed logging for both scenarios\n\n2. Demo Mode Structured Logging \\(demo_executor.py\\):\n   - Added event-based logging: DEMO_ANALYSIS_TRIGGERED\n   - Added DEMO_PHASE2_STARTED/COMPLETED/FAILED\n   - Added DEMO_PHASE3_STARTED/COMPLETED/FAILED\n   - Added DEMO_PHASE4_STARTED/COMPLETED/FAILED\n   - Added DEMO_ANALYSIS_COMPLETED/FAILED\n   - All events include: evidence_id, job_id, phase, duration_seconds\n   - Error events include: error_code, error_message, error_type\n   - Makes Render logs easily searchable and debuggable\n\n3. Regression Test \\(test_demo_non_email_pcap.py\\):\n   - Tests Phase 2 completion with ping PCAP \\(no email traffic\\)\n   - Tests Phase 3 uses assess_empty\\(\\) when no email sessions exist\n   - Tests empty PCAP \\(0 packets\\) completes with UNKNOWN risk\n   - Tests full pipeline with ping-request-and-reply.pcapng\n   - Verifies NO fabricated email findings from ICMP traffic\n   - Skips TShark-dependent tests when binary unavailable\n\nTESTING:\n✓ All 20 existing tests pass \\(cases + analysis APIs\\)\n✓ New test_phase3_empty_pcap_uses_empty_risk_assessment PASSES\n✓ Verified risk=UNKNOWN for non-email traffic\n✓ Phase 2→3 pipeline handles ping PCAP correctly\n✓ No regression in existing functionality\n\nBEHAVIOR:\n- ping-request-and-reply.pcapng: Phase 2 COMPLETED, Phase 3 COMPLETED, risk=UNKNOWN\n- Empty PCAP: Phase 2 COMPLETED \\(0 packets\\), Phase 3 COMPLETED, risk=UNKNOWN\n- Email PCAP: Phase 2 COMPLETED, Phase 3 COMPLETED, risk=calculated normally\n\nProduction Celery mode remains unchanged.\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(bash:*)",
+      "Bash(git reset:*)"
     ]
   }
 }
