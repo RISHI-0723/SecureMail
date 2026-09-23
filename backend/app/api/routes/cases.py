@@ -1,12 +1,15 @@
 """Case management API endpoints."""
 import logging
+from typing import Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.case import Case, CaseStatus
 from app.models.evidence import PcapEvidence
+from app.models.intelligence import IntelligenceReport, IntelligenceStatus, GeneratedReport, ReportFormat as DbReportFormat
 from app.schemas.case import (
     CaseCreate,
     CaseUpdate,
@@ -19,6 +22,19 @@ from app.services.case_service import case_service, CaseServiceError
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+
+# Request/Response schemas for report generation
+class ReportGenerationRequest(BaseModel):
+    """Request to generate a report for a case."""
+    format: str  # "json", "html", or "pdf"
+
+
+class ReportGenerationResponse(BaseModel):
+    """Response containing report generation result."""
+    report_id: str
+    download_url: str
+    format: str
 
 
 @router.post(
@@ -221,6 +237,125 @@ async def update_case(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail={"code": "DATABASE_ERROR", "message": "Failed to update case"}
+        )
+
+
+@router.post(
+    "/{case_id}/report",
+    response_model=ApiResponse[ReportGenerationResponse],
+    tags=["Cases"],
+    summary="Generate or retrieve case report"
+)
+async def generate_case_report(
+    case_id: str,
+    request: ReportGenerationRequest,
+    db: Session = Depends(get_db)
+) -> ApiResponse[ReportGenerationResponse]:
+    """
+    Generate or retrieve a forensic report for a case.
+
+    Currently returns the first available evidence report in the requested format.
+    TODO: Implement case-level consolidated reports combining all evidence.
+
+    Args:
+        case_id: Case identifier
+        request: Report generation request with format
+        db: Database session
+
+    Returns:
+        Report ID and download URL
+    """
+    # Verify case exists
+    case = db.query(Case).filter(Case.case_id == case_id).first()
+    if not case:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "CASE_NOT_FOUND", "message": f"Case not found: {case_id}"}
+        )
+
+    # Validate format
+    format_lower = request.format.lower()
+    if format_lower not in ["json", "html", "pdf"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"code": "INVALID_FORMAT", "message": f"Invalid format: {request.format}. Must be json, html, or pdf."}
+        )
+
+    # Map format string to enum
+    format_map = {
+        "json": DbReportFormat.JSON,
+        "html": DbReportFormat.HTML,
+        "pdf": DbReportFormat.PDF
+    }
+    db_format = format_map[format_lower]
+
+    try:
+        # Get all evidence for this case
+        evidence_list = db.query(PcapEvidence).filter(
+            PcapEvidence.case_id == case_id
+        ).all()
+
+        if not evidence_list:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "code": "NO_EVIDENCE",
+                    "message": f"No evidence found for case: {case_id}"
+                }
+            )
+
+        # Find first completed intelligence report for any evidence in this case
+        for evidence in evidence_list:
+            # Get latest completed intelligence report for this evidence
+            intel_report = db.query(IntelligenceReport).filter(
+                IntelligenceReport.evidence_id == evidence.evidence_id,
+                IntelligenceReport.status == IntelligenceStatus.COMPLETED
+            ).order_by(IntelligenceReport.completed_at.desc()).first()
+
+            if not intel_report:
+                continue
+
+            # Find existing generated report in requested format
+            generated_report = db.query(GeneratedReport).filter(
+                GeneratedReport.intelligence_report_id == intel_report.report_id,
+                GeneratedReport.format == db_format
+            ).first()
+
+            if generated_report and generated_report.filename:
+                # Return existing report
+                download_url = f"/api/v1/reports/{generated_report.report_id}/download"
+
+                logger.info(
+                    f"Returning existing {format_lower} report for case {case_id}",
+                    extra={
+                        "case_id": case_id,
+                        "report_id": generated_report.report_id,
+                        "format": format_lower
+                    }
+                )
+
+                return ApiResponse.ok(ReportGenerationResponse(
+                    report_id=generated_report.report_id,
+                    download_url=download_url,
+                    format=format_lower
+                ))
+
+        # No completed reports found
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "code": "NO_REPORTS_AVAILABLE",
+                "message": f"No completed {format_lower} reports available for case {case_id}. Analysis may still be running."
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to generate case report: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "REPORT_GENERATION_FAILED", "message": "Failed to generate report"}
         )
 
 

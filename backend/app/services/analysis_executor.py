@@ -313,6 +313,17 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         job.stage = "INITIALIZING_SECURITY_ANALYSIS"
         db.commit()
 
+        logger.info(
+            "PHASE3_STARTED",
+            extra={
+                "event": "PHASE3_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "packet_analysis_id": packet_analysis_id
+            }
+        )
+
         # Get Phase 2 packet analysis results
         packet_analysis = None
         if packet_analysis_id:
@@ -403,6 +414,20 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         job.progress_percent = "70"
         db.commit()
 
+        logger.info(
+            "FINDINGS_ENGINE_STARTED",
+            extra={
+                "event": "FINDINGS_ENGINE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "total_streams": len(streams),
+                "total_sessions": len(sessions),
+                "total_tls_observations": len(tls_observations),
+                "total_certificates": len(certificates)
+            }
+        )
+
         finding_engine.analyze_streams(
             streams=streams,
             evidence_id=job.evidence_id,
@@ -434,6 +459,22 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
 
         findings = findings_result.findings
 
+        logger.info(
+            "FINDINGS_ENGINE_COMPLETED",
+            extra={
+                "event": "FINDINGS_ENGINE_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "total_findings": findings_result.summary.total_findings,
+                "critical_findings": findings_result.summary.critical_count,
+                "high_findings": findings_result.summary.high_count,
+                "medium_findings": findings_result.summary.medium_count,
+                "low_findings": findings_result.summary.low_count,
+                "info_findings": findings_result.summary.info_count
+            }
+        )
+
         # Step 6: Calculate risk
         job.stage = "CALCULATING_RISK"
         job.progress_percent = "85"
@@ -441,6 +482,21 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
 
         # Check if we have email traffic to analyze
         has_email_traffic = email_result.total_sessions > 0
+
+        logger.info(
+            "RISK_ENGINE_STARTED",
+            extra={
+                "event": "RISK_ENGINE_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "has_email_traffic": has_email_traffic,
+                "total_findings": findings_result.summary.total_findings,
+                "total_streams": stream_result.total_streams,
+                "total_sessions": email_result.total_sessions,
+                "total_certificates": cert_result.total_certificates
+            }
+        )
 
         if has_email_traffic:
             # Standard risk assessment when email traffic exists
@@ -453,13 +509,16 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
                 coverage="COMPLETE" if stream_result.total_streams > 0 else "PARTIAL"
             )
             logger.info(
-                f"Phase 3 risk assessment completed: {risk_assessment.overall_risk_level}",
+                "RISK_ENGINE_COMPLETED",
                 extra={
+                    "event": "RISK_ENGINE_COMPLETED",
                     "job_id": job_id,
                     "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
                     "risk_level": risk_assessment.overall_risk_level,
                     "risk_score": risk_assessment.overall_risk_score,
-                    "total_findings": findings_result.summary.total_findings
+                    "total_findings": findings_result.summary.total_findings,
+                    "has_email_traffic": True
                 }
             )
         else:
@@ -470,10 +529,16 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
                 reason="No SMTP, IMAP, or POP3 traffic was detected in the supplied evidence."
             )
             logger.info(
-                "Phase 3 completed with no email traffic detected",
+                "RISK_ENGINE_COMPLETED",
                 extra={
+                    "event": "RISK_ENGINE_COMPLETED",
                     "job_id": job_id,
                     "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "risk_level": "MINIMAL",
+                    "risk_score": 100.0,
+                    "total_findings": 0,
+                    "has_email_traffic": False,
                     "total_streams": stream_result.total_streams,
                     "total_packets": packet_analysis.total_packets if packet_analysis else 0
                 }
@@ -521,6 +586,23 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
             risk_assessment.posture.coverage
         )
 
+        logger.info(
+            "SECURITY_ANALYSIS_PERSIST_STARTED",
+            extra={
+                "event": "SECURITY_ANALYSIS_PERSIST_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "streams_to_serialize": len(streams),
+                "sessions_to_serialize": len(sessions),
+                "tls_observations_to_serialize": len(tls_observations),
+                "certificates_to_serialize": len(certificates),
+                "findings_to_serialize": len(findings)
+            }
+        )
+
+        persist_start_time = datetime.now(timezone.utc)
+
         security_analysis.tcp_streams = [
             stream.model_dump()
             for stream in streams
@@ -564,11 +646,58 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         job.error_code = None
         job.error_message = None
 
-        db.commit()
+        persist_duration = (datetime.now(timezone.utc) - persist_start_time).total_seconds()
 
         logger.info(
-            f"Phase 3 security analysis completed successfully for job {job_id}",
-            extra={"job_id": job_id, "finding_count": len(findings)}
+            "SECURITY_ANALYSIS_PERSIST_COMPLETED",
+            extra={
+                "event": "SECURITY_ANALYSIS_PERSIST_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "persist_duration_seconds": persist_duration
+            }
+        )
+
+        logger.info(
+            "DATABASE_COMMIT_STARTED",
+            extra={
+                "event": "DATABASE_COMMIT_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3"
+            }
+        )
+
+        commit_start_time = datetime.now(timezone.utc)
+        db.commit()
+        commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
+
+        logger.info(
+            "DATABASE_COMMIT_COMPLETED",
+            extra={
+                "event": "DATABASE_COMMIT_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "commit_duration_seconds": commit_duration
+            }
+        )
+
+        total_phase3_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "PHASE3_COMPLETED",
+            extra={
+                "event": "PHASE3_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "total_duration_seconds": total_phase3_duration,
+                "finding_count": len(findings),
+                "risk_level": security_analysis.overall_risk_level,
+                "risk_score": security_analysis.overall_risk_score
+            }
         )
 
         return {
@@ -665,6 +794,18 @@ def execute_phase4_analysis(
         job.started_at = start_time
         job.stage = "INITIALIZING_INTELLIGENCE_ANALYSIS"
         db.commit()
+
+        logger.info(
+            "PHASE4_STARTED",
+            extra={
+                "event": "PHASE4_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4",
+                "security_analysis_id": security_analysis_id,
+                "ml_enabled": enable_ml
+            }
+        )
 
         # Get Phase 3 security analysis results
         security_analysis = None
@@ -768,6 +909,22 @@ def execute_phase4_analysis(
             job.progress_percent = "50"
             db.commit()
 
+            logger.info(
+                "ML_ANALYSIS_STARTED",
+                extra={
+                    "event": "ML_ANALYSIS_STARTED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE4",
+                    "total_sessions": len(sessions),
+                    "total_tls_observations": len(tls_observations),
+                    "total_certificates": len(certificates),
+                    "total_findings": len(findings)
+                }
+            )
+
+            ml_start_time = datetime.now(timezone.utc)
+
             try:
                 from app.services.ml.feature_engineering import FeatureEngineer
                 from app.services.ml.anomaly_detector import AnomalyDetector
@@ -792,12 +949,19 @@ def execute_phase4_analysis(
                         ml_insights = anomaly_detector.get_ml_insights(anomaly_results)
                         ml_status = "COMPLETED"
 
+                        ml_duration = (datetime.now(timezone.utc) - ml_start_time).total_seconds()
+
                         logger.info(
-                            f"ML analysis complete for job {job_id}",
+                            "ML_ANALYSIS_COMPLETED",
                             extra={
+                                "event": "ML_ANALYSIS_COMPLETED",
                                 "job_id": job_id,
+                                "evidence_id": job.evidence_id,
+                                "phase": "PHASE4",
+                                "ml_status": ml_status,
                                 "features_extracted": len(feature_vectors),
-                                "anomalies_detected": ml_insights.anomalies_detected
+                                "anomalies_detected": ml_insights.anomalies_detected,
+                                "ml_duration_seconds": ml_duration
                             }
                         )
                     else:
@@ -812,7 +976,21 @@ def execute_phase4_analysis(
                             top_risk_factors=[],
                             confidence=0.0
                         )
-                        logger.info(f"ML analysis skipped: insufficient data (need 5+ sessions, got {len(feature_vectors)})")
+                        ml_duration = (datetime.now(timezone.utc) - ml_start_time).total_seconds()
+
+                        logger.info(
+                            "ML_ANALYSIS_COMPLETED",
+                            extra={
+                                "event": "ML_ANALYSIS_COMPLETED",
+                                "job_id": job_id,
+                                "evidence_id": job.evidence_id,
+                                "phase": "PHASE4",
+                                "ml_status": ml_status,
+                                "features_extracted": len(feature_vectors),
+                                "ml_duration_seconds": ml_duration,
+                                "message": "Insufficient data (need 5+ sessions)"
+                            }
+                        )
                 else:
                     ml_status = "NO_FEATURES"
                     ml_insights = MLInsights(
@@ -825,13 +1003,36 @@ def execute_phase4_analysis(
                         top_risk_factors=[],
                         confidence=0.0
                     )
-                    logger.info("ML analysis skipped: no features extracted")
+                    ml_duration = (datetime.now(timezone.utc) - ml_start_time).total_seconds()
+
+                    logger.info(
+                        "ML_ANALYSIS_COMPLETED",
+                        extra={
+                            "event": "ML_ANALYSIS_COMPLETED",
+                            "job_id": job_id,
+                            "evidence_id": job.evidence_id,
+                            "phase": "PHASE4",
+                            "ml_status": ml_status,
+                            "ml_duration_seconds": ml_duration,
+                            "message": "No features extracted"
+                        }
+                    )
 
             except Exception as ml_error:
                 ml_status = "FAILED"
+                ml_duration = (datetime.now(timezone.utc) - ml_start_time).total_seconds()
+
                 logger.warning(
-                    f"ML analysis failed (deterministic results continue): {ml_error}",
-                    extra={"job_id": job_id},
+                    "ML_ANALYSIS_COMPLETED",
+                    extra={
+                        "event": "ML_ANALYSIS_COMPLETED",
+                        "job_id": job_id,
+                        "evidence_id": job.evidence_id,
+                        "phase": "PHASE4",
+                        "ml_status": ml_status,
+                        "ml_duration_seconds": ml_duration,
+                        "error": str(ml_error)[:200]
+                    },
                     exc_info=True
                 )
                 ml_insights = MLInsights(
@@ -855,12 +1056,36 @@ def execute_phase4_analysis(
                 top_risk_factors=[],
                 confidence=0.0
             )
-            logger.info("ML analysis disabled by configuration")
+            logger.info(
+                "ML_ANALYSIS_SKIPPED",
+                extra={
+                    "event": "ML_ANALYSIS_SKIPPED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE4",
+                    "reason": "ML disabled in configuration"
+                }
+            )
 
         # Step 5: Finalize Intelligence Report
         job.stage = "FINALIZING_INTELLIGENCE"
         job.progress_percent = "65"
         db.commit()
+
+        logger.info(
+            "INTELLIGENCE_PERSIST_STARTED",
+            extra={
+                "event": "INTELLIGENCE_PERSIST_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4",
+                "aggregated_findings_count": len(aggregated_findings),
+                "correlations_count": len(correlations),
+                "recommendations_count": len(recommendations)
+            }
+        )
+
+        persist_start_time = datetime.now(timezone.utc)
 
         # Calculate duration
         duration = (datetime.now(timezone.utc) - start_time).total_seconds()
@@ -1027,14 +1252,60 @@ def execute_phase4_analysis(
         job.completed_at = datetime.now(timezone.utc)
         job.stage = "COMPLETED"
         job.progress_percent = "100"
-        db.commit()
+
+        persist_duration = (datetime.now(timezone.utc) - persist_start_time).total_seconds()
 
         logger.info(
-            f"Phase 4 intelligence analysis completed successfully for job {job_id}",
+            "INTELLIGENCE_PERSIST_COMPLETED",
             extra={
+                "event": "INTELLIGENCE_PERSIST_COMPLETED",
                 "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4",
+                "persist_duration_seconds": persist_duration
+            }
+        )
+
+        logger.info(
+            "DATABASE_COMMIT_STARTED",
+            extra={
+                "event": "DATABASE_COMMIT_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4"
+            }
+        )
+
+        commit_start_time = datetime.now(timezone.utc)
+        db.commit()
+        commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
+
+        logger.info(
+            "DATABASE_COMMIT_COMPLETED",
+            extra={
+                "event": "DATABASE_COMMIT_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4",
+                "commit_duration_seconds": commit_duration
+            }
+        )
+
+        total_phase4_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
+
+        logger.info(
+            "PHASE4_COMPLETED",
+            extra={
+                "event": "PHASE4_COMPLETED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE4",
+                "total_duration_seconds": total_phase4_duration,
                 "posture_grade": posture.grade.value,
-                "recommendations": len(recommendations)
+                "posture_score": posture.overall_score,
+                "correlations_count": len(correlations),
+                "recommendations_count": len(recommendations),
+                "ml_status": ml_status
             }
         )
 
