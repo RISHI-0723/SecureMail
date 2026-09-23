@@ -607,6 +607,21 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
                 }
             )
 
+        # Update job stage after risk calculation completes
+        job.stage = "PERSISTING_RESULTS"
+        job.progress_percent = "90"
+        db.commit()
+
+        logger.info(
+            "PERSISTING_RESULTS_STARTED",
+            extra={
+                "event": "PERSISTING_RESULTS_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3"
+            }
+        )
+
         # Step 7: Update security analysis with results
         security_analysis.total_streams = stream_result.total_streams
         security_analysis.total_sessions = email_result.total_sessions
@@ -797,19 +812,51 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         )
 
         commit_start_time = datetime.now(timezone.utc)
-        db.commit()
-        commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
 
-        logger.info(
-            "DATABASE_COMMIT_COMPLETED",
-            extra={
-                "event": "DATABASE_COMMIT_COMPLETED",
-                "job_id": job_id,
-                "evidence_id": job.evidence_id,
-                "phase": "PHASE3",
-                "commit_duration_seconds": commit_duration
-            }
-        )
+        try:
+            db.commit()
+            commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
+
+            # Warn if database commit takes longer than expected
+            if commit_duration > 10.0:
+                logger.warning(
+                    "DATABASE_COMMIT_SLOW",
+                    extra={
+                        "event": "DATABASE_COMMIT_SLOW",
+                        "job_id": job_id,
+                        "evidence_id": job.evidence_id,
+                        "phase": "PHASE3",
+                        "commit_duration_seconds": commit_duration,
+                        "message": f"Database commit took {commit_duration:.2f}s (expected <10s)"
+                    }
+                )
+
+            logger.info(
+                "DATABASE_COMMIT_COMPLETED",
+                extra={
+                    "event": "DATABASE_COMMIT_COMPLETED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "commit_duration_seconds": commit_duration
+                }
+            )
+        except Exception as commit_error:
+            logger.error(
+                "DATABASE_COMMIT_FAILED",
+                extra={
+                    "event": "DATABASE_COMMIT_FAILED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "error": str(commit_error)[:500]
+                },
+                exc_info=True
+            )
+            raise AnalysisExecutionError(
+                "DATABASE_COMMIT_FAILED",
+                f"Failed to commit Phase 3 results: {str(commit_error)[:200]}"
+            )
 
         total_phase3_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
@@ -1440,19 +1487,51 @@ def execute_phase4_analysis(
         )
 
         commit_start_time = datetime.now(timezone.utc)
-        db.commit()
-        commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
 
-        logger.info(
-            "DATABASE_COMMIT_COMPLETED",
-            extra={
-                "event": "DATABASE_COMMIT_COMPLETED",
-                "job_id": job_id,
-                "evidence_id": job.evidence_id,
-                "phase": "PHASE4",
-                "commit_duration_seconds": commit_duration
-            }
-        )
+        try:
+            db.commit()
+            commit_duration = (datetime.now(timezone.utc) - commit_start_time).total_seconds()
+
+            # Warn if database commit takes longer than expected
+            if commit_duration > 10.0:
+                logger.warning(
+                    "DATABASE_COMMIT_SLOW",
+                    extra={
+                        "event": "DATABASE_COMMIT_SLOW",
+                        "job_id": job_id,
+                        "evidence_id": job.evidence_id,
+                        "phase": "PHASE4",
+                        "commit_duration_seconds": commit_duration,
+                        "message": f"Database commit took {commit_duration:.2f}s (expected <10s)"
+                    }
+                )
+
+            logger.info(
+                "DATABASE_COMMIT_COMPLETED",
+                extra={
+                    "event": "DATABASE_COMMIT_COMPLETED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE4",
+                    "commit_duration_seconds": commit_duration
+                }
+            )
+        except Exception as commit_error:
+            logger.error(
+                "DATABASE_COMMIT_FAILED",
+                extra={
+                    "event": "DATABASE_COMMIT_FAILED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE4",
+                    "error": str(commit_error)[:500]
+                },
+                exc_info=True
+            )
+            raise AnalysisExecutionError(
+                "DATABASE_COMMIT_FAILED",
+                f"Failed to commit Phase 4 results: {str(commit_error)[:200]}"
+            )
 
         total_phase4_duration = (datetime.now(timezone.utc) - start_time).total_seconds()
 
