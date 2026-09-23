@@ -219,7 +219,7 @@ export interface SecurityAnalysisSummary {
   low_findings: number;
   info_findings: number;
   overall_risk_level: string;
-  overall_risk_score: number;
+  overall_risk_score: number | null;
   confidence: string;
   coverage: string;
   policy_version: string;

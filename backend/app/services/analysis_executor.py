@@ -757,9 +757,85 @@ def execute_phase4_analysis(
             aggregated_findings, correlations, posture, findings
         )
 
-        # Step 4: Update intelligence report (skip ML for demo)
+        # Step 4: ML Analysis (if enabled and sufficient data)
+        from app.services.ml.models import MLInsights
+
+        ml_insights = None
+        ml_status = "NOT_RUN"
+
+        if enable_ml:
+            job.stage = "ML_FEATURE_ENGINEERING"
+            job.progress_percent = "50"
+            db.commit()
+
+            try:
+                from app.services.ml.feature_engineering import FeatureEngineer
+                from app.services.ml.anomaly_detector import AnomalyDetector
+
+                logger.info(f"Starting ML analysis for job {job_id}")
+
+                feature_engineer = FeatureEngineer()
+                feature_vectors = feature_engineer.extract_all_features(
+                    sessions, tls_observations, certificates, findings
+                )
+
+                if feature_vectors:
+                    job.stage = "ML_ANOMALY_DETECTION"
+                    job.progress_percent = "55"
+                    db.commit()
+
+                    anomaly_detector = AnomalyDetector()
+
+                    # Fit on current data (trains Isolation Forest)
+                    if anomaly_detector.fit(feature_vectors):
+                        anomaly_results = anomaly_detector.predict_batch(feature_vectors)
+                        ml_insights = anomaly_detector.get_ml_insights(anomaly_results)
+                        ml_status = "COMPLETED"
+
+                        logger.info(
+                            f"ML analysis complete for job {job_id}",
+                            extra={
+                                "job_id": job_id,
+                                "features_extracted": len(feature_vectors),
+                                "anomalies_detected": ml_insights.anomalies_detected
+                            }
+                        )
+                    else:
+                        ml_status = "INSUFFICIENT_DATA"
+                        ml_insights = MLInsights(
+                            ml_enabled=False,
+                            summary="Insufficient data for ML analysis (need 5+ sessions)"
+                        )
+                        logger.info(f"ML analysis skipped: insufficient data (need 5+ sessions, got {len(feature_vectors)})")
+                else:
+                    ml_status = "NO_FEATURES"
+                    ml_insights = MLInsights(
+                        ml_enabled=False,
+                        summary="No features extracted for ML analysis"
+                    )
+                    logger.info("ML analysis skipped: no features extracted")
+
+            except Exception as ml_error:
+                ml_status = "FAILED"
+                logger.warning(
+                    f"ML analysis failed (deterministic results continue): {ml_error}",
+                    extra={"job_id": job_id},
+                    exc_info=True
+                )
+                ml_insights = MLInsights(
+                    ml_enabled=False,
+                    summary=f"ML analysis failed: {str(ml_error)}"
+                )
+        else:
+            ml_insights = MLInsights(
+                ml_enabled=False,
+                summary="ML disabled in configuration"
+            )
+            logger.info("ML analysis disabled by configuration")
+
+        # Step 5: Finalize Intelligence Report
         job.stage = "FINALIZING_INTELLIGENCE"
-        job.progress_percent = "80"
+        job.progress_percent = "65"
         db.commit()
 
         # Calculate duration
@@ -775,7 +851,15 @@ def execute_phase4_analysis(
             "total": len(recommendations),
             "by_priority": {}  # Could be expanded if needed
         }
-        intelligence_report.ml_insights = {"ml_enabled": False, "summary": "ML disabled for demo mode"}
+
+        # Include ML insights
+        if ml_insights:
+            intelligence_report.ml_insights = ml_insights.model_dump()
+            # Update summary with ML info
+            summary.ml_enabled = ml_insights.ml_enabled
+            summary.anomalies_detected = ml_insights.anomalies_detected
+        else:
+            intelligence_report.ml_insights = {"ml_enabled": False, "summary": "ML not executed"}
 
         # Set counts
         intelligence_report.total_correlations = len(correlations)
@@ -798,6 +882,122 @@ def execute_phase4_analysis(
 
         # CRITICAL: Set status to COMPLETED so frontend can retrieve the report
         intelligence_report.status = IntelligenceStatus.COMPLETED
+
+        # Step 6: Generate Reports (JSON, HTML, PDF)
+        job.stage = "GENERATING_REPORTS"
+        job.progress_percent = "75"
+        db.commit()
+
+        logger.info(f"Generating reports for job {job_id}")
+
+        from app.services.reports import ReportGenerator, ReportFormat
+        from app.models.intelligence import GeneratedReport, ReportFormat as DbReportFormat, ReportStatus as DbReportStatus
+        from pathlib import Path
+        from app.core.config import settings
+
+        # Get reports directory
+        reports_dir = Path(getattr(settings, 'REPORTS_DIR', './reports'))
+        reports_dir.mkdir(parents=True, exist_ok=True)
+
+        report_generator = ReportGenerator(output_dir=reports_dir)
+
+        # Prepare intelligence result for report generation
+        from app.services.intelligence.models import IntelligenceResult
+        from app.services.ml.models import MLInsights
+
+        intelligence_result = IntelligenceResult(
+            evidence_id=job.evidence_id,
+            job_id=job_id,
+            aggregated_findings=aggregated_findings,
+            correlations=correlations,
+            recommendations=recommendations,
+            posture=posture,
+            summary=summary
+        )
+
+        # Get evidence info
+        evidence = db.query(PcapEvidence).filter(
+            PcapEvidence.evidence_id == job.evidence_id
+        ).first()
+
+        evidence_info = {
+            "evidence_id": evidence.evidence_id if evidence else job.evidence_id,
+            "original_filename": evidence.original_filename if evidence else "unknown",
+            "sha256": evidence.sha256 if evidence else "",
+            "file_size_bytes": evidence.file_size_bytes if evidence else 0,
+            "upload_timestamp": evidence.upload_timestamp if evidence else None,
+            "case_id": evidence.case_id if evidence else None,
+            "packets_analyzed": security_analysis.total_streams if security_analysis else 0,
+        }
+
+        # ML insights (disabled for demo)
+        ml_insights = MLInsights(ml_enabled=False, summary="ML disabled for demo mode")
+
+        # Generate JSON report
+        try:
+            json_report_info = report_generator.generate_report(
+                intelligence_result, evidence_info, ml_insights, ReportFormat.JSON
+            )
+
+            db_json_report = GeneratedReport(
+                intelligence_report_id=intelligence_report.report_id,
+                evidence_id=job.evidence_id,
+                format=DbReportFormat.JSON,
+                status=DbReportStatus.COMPLETED if json_report_info.status.value == "COMPLETED" else DbReportStatus.FAILED,
+                filename=json_report_info.filename,
+                file_size_bytes=json_report_info.file_size_bytes,
+                content_hash=json_report_info.content_hash,
+                generated_at=json_report_info.generated_at,
+                error_message=json_report_info.error_message,
+            )
+            db.add(db_json_report)
+            logger.info(f"JSON report generated: {json_report_info.filename}")
+        except Exception as e:
+            logger.warning(f"JSON report generation failed: {e}", exc_info=True)
+
+        # Generate HTML report
+        try:
+            html_report_info = report_generator.generate_report(
+                intelligence_result, evidence_info, ml_insights, ReportFormat.HTML
+            )
+
+            db_html_report = GeneratedReport(
+                intelligence_report_id=intelligence_report.report_id,
+                evidence_id=job.evidence_id,
+                format=DbReportFormat.HTML,
+                status=DbReportStatus.COMPLETED if html_report_info.status.value == "COMPLETED" else DbReportStatus.FAILED,
+                filename=html_report_info.filename,
+                file_size_bytes=html_report_info.file_size_bytes,
+                content_hash=html_report_info.content_hash,
+                generated_at=html_report_info.generated_at,
+                error_message=html_report_info.error_message,
+            )
+            db.add(db_html_report)
+            logger.info(f"HTML report generated: {html_report_info.filename}")
+        except Exception as e:
+            logger.warning(f"HTML report generation failed: {e}", exc_info=True)
+
+        # Generate PDF report (optional, may fail if weasyprint not available)
+        try:
+            pdf_report_info = report_generator.generate_report(
+                intelligence_result, evidence_info, ml_insights, ReportFormat.PDF
+            )
+
+            db_pdf_report = GeneratedReport(
+                intelligence_report_id=intelligence_report.report_id,
+                evidence_id=job.evidence_id,
+                format=DbReportFormat.PDF,
+                status=DbReportStatus.COMPLETED if pdf_report_info.status.value == "COMPLETED" else DbReportStatus.FAILED,
+                filename=pdf_report_info.filename,
+                file_size_bytes=pdf_report_info.file_size_bytes,
+                content_hash=pdf_report_info.content_hash,
+                generated_at=pdf_report_info.generated_at,
+                error_message=pdf_report_info.error_message,
+            )
+            db.add(db_pdf_report)
+            logger.info(f"PDF report generated: {pdf_report_info.filename}")
+        except Exception as e:
+            logger.warning(f"PDF report generation failed (continuing): {e}", exc_info=True)
 
         # Complete job
         job.status = JobStatus.COMPLETED

@@ -743,7 +743,11 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">Risk Score</p>
-                    <p className="text-white text-xl font-semibold">{summary.overall_risk_score.toFixed(1)}/100</p>
+                    <p className="text-white text-xl font-semibold">
+                      {summary.overall_risk_score !== null && summary.overall_risk_score !== undefined
+                        ? `${summary.overall_risk_score.toFixed(1)}/100`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">Total Findings</p>
@@ -858,23 +862,43 @@ export function CaseDetailPage({ caseId, onBack }: CaseDetailPageProps) {
                       summary.security_posture_grade === 'D' ? 'text-orange-400' :
                       'text-red-400'
                     }`}>{summary.security_posture_grade}</p>
-                    <p className="text-blue-200 text-xs">{summary.security_posture_score.toFixed(1)}/100</p>
+                    <p className="text-blue-200 text-xs">
+                      {summary.security_posture_score !== null && summary.security_posture_score !== undefined
+                        ? `${summary.security_posture_score.toFixed(1)}/100`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">TLS Security</p>
-                    <p className="text-white text-xl font-semibold">{summary.tls_security_score.toFixed(0)}%</p>
+                    <p className="text-white text-xl font-semibold">
+                      {summary.tls_security_score !== null && summary.tls_security_score !== undefined
+                        ? `${summary.tls_security_score.toFixed(0)}%`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">Certificate</p>
-                    <p className="text-white text-xl font-semibold">{summary.certificate_security_score.toFixed(0)}%</p>
+                    <p className="text-white text-xl font-semibold">
+                      {summary.certificate_security_score !== null && summary.certificate_security_score !== undefined
+                        ? `${summary.certificate_security_score.toFixed(0)}%`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">Protocol</p>
-                    <p className="text-white text-xl font-semibold">{summary.protocol_security_score.toFixed(0)}%</p>
+                    <p className="text-white text-xl font-semibold">
+                      {summary.protocol_security_score !== null && summary.protocol_security_score !== undefined
+                        ? `${summary.protocol_security_score.toFixed(0)}%`
+                        : 'N/A'}
+                    </p>
                   </div>
                   <div className="bg-white/5 rounded p-3">
                     <p className="text-blue-300 text-xs uppercase">Config</p>
-                    <p className="text-white text-xl font-semibold">{summary.configuration_security_score.toFixed(0)}%</p>
+                    <p className="text-white text-xl font-semibold">
+                      {summary.configuration_security_score !== null && summary.configuration_security_score !== undefined
+                        ? `${summary.configuration_security_score.toFixed(0)}%`
+                        : 'N/A'}
+                    </p>
                   </div>
                 </div>
 

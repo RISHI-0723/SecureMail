@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 from app.core.database import SessionLocal
+from app.core.config import settings
 from app.services.analysis_executor import (
     execute_phase2_analysis,
     execute_phase3_analysis,
@@ -263,11 +264,13 @@ class DemoExecutor:
                 )
 
                 phase4_start = datetime.now(timezone.utc)
+                # Enable ML based on configuration
+                # ML will gracefully handle insufficient data (need 5+ sessions)
                 phase4_result = execute_phase4_analysis(
                     db,
                     phase4_job_id,
                     security_analysis_id,
-                    enable_ml=False  # ML disabled for demo
+                    enable_ml=settings.ml_enabled
                 )
                 phase4_duration = (datetime.now(timezone.utc) - phase4_start).total_seconds()
 

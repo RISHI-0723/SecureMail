@@ -360,21 +360,27 @@ class RiskEngine:
         """
         Create assessment for case with no findings.
 
+        IMPORTANT: When there's insufficient evidence (e.g., no email traffic),
+        the risk score is set to None (not 100.0) because we cannot assess
+        what we cannot observe. A score of 100/100 would incorrectly imply
+        perfect security, when in reality there's insufficient email evidence
+        to make any security determination.
+
         Args:
             evidence_id: Evidence identifier
             job_id: Job identifier
             reason: Reason for empty assessment
 
         Returns:
-            Risk assessment with UNKNOWN status
+            Risk assessment with UNKNOWN status and null score
         """
         posture = SecurityPosture(
-            overall_score=100.0,
+            overall_score=None,  # None = cannot assess, not 100 = perfect
             overall_risk=RiskLevel.UNKNOWN,
             dimensions=[],
             score_breakdown={"reason": reason},
             confidence="LOW",
-            coverage="UNKNOWN",
+            coverage="INSUFFICIENT_EVIDENCE",
             summary=reason,
             key_findings=[],
             recommendations=[]

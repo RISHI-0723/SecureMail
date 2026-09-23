@@ -49,6 +49,127 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
 
+@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+async def signup(
+    request: Request,
+    user_data: UserCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Register a new user account.
+
+    Public endpoint - does not require authentication.
+    After successful registration, user is automatically logged in.
+
+    Args:
+        request: FastAPI request
+        user_data: User registration data
+        db: Database session
+
+    Returns:
+        JWT access and refresh tokens
+
+    Raises:
+        HTTPException: On registration failure
+    """
+    request_id = get_request_id(request)
+
+    # Check for existing username
+    existing_user = db.query(User).filter(
+        or_(
+            User.username == user_data.username,
+            User.email == user_data.email
+        )
+    ).first()
+
+    if existing_user:
+        if existing_user.username == user_data.username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "USERNAME_EXISTS",
+                    "message": "Username already exists",
+                    "request_id": request_id
+                }
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "EMAIL_EXISTS",
+                    "message": "Email already exists",
+                    "request_id": request_id
+                }
+            )
+
+    # Validate password strength
+    is_valid, error_msg = validate_password_strength(user_data.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error": "WEAK_PASSWORD",
+                "message": error_msg,
+                "request_id": request_id
+            }
+        )
+
+    # Create new user with VIEWER role (safe default)
+    new_user = User(
+        username=user_data.username,
+        email=user_data.email,
+        password_hash=hash_password(user_data.password),
+        full_name=user_data.full_name,
+        role=UserRole.VIEWER,  # New users get VIEWER role for security
+        status=UserStatus.ACTIVE
+    )
+
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+
+        logger.info(
+            "New user registered",
+            extra={"request_id": request_id, "user_id": new_user.user_id, "username": new_user.username}
+        )
+        log_audit_event(
+            db,
+            action="USER_SIGNUP",
+            user=new_user,
+            request=request
+        )
+
+        # Auto-login: create tokens
+        token_data = {
+            "sub": new_user.user_id,
+            "username": new_user.username,
+            "role": new_user.role.value
+        }
+
+        access_token = create_access_token(token_data)
+        refresh_token_str = create_refresh_token(token_data)
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token_str,
+            token_type="bearer",
+            expires_in=settings.access_token_expire_minutes * 60
+        )
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"User registration failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": "REGISTRATION_FAILED",
+                "message": "Failed to create user account",
+                "request_id": request_id
+            }
+        )
+
+
 @router.post("/login", response_model=TokenResponse)
 async def login(
     request: Request,

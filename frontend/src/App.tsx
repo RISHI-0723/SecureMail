@@ -7,6 +7,7 @@ import { api, getAccessToken, clearTokens } from '@/services/api';
 import type { UserInfo } from '@/types';
 import { Layout, type Page } from '@/components/Layout';
 import { LoginPage } from '@/pages/LoginPage';
+import { SignUpPage } from '@/pages/SignUpPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { CasesPage } from '@/pages/CasesPage';
 import { CaseDetailPage } from '@/pages/CaseDetailPage';
@@ -21,6 +22,7 @@ function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
+  const [showSignUp, setShowSignUp] = useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -45,6 +47,13 @@ function App() {
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
     setAuthLoading(true);
+    setShowSignUp(false);
+  };
+
+  const handleSignUpSuccess = () => {
+    setIsAuthenticated(true);
+    setAuthLoading(true);
+    setShowSignUp(false);
   };
 
   const handleLogout = () => {
@@ -54,6 +63,7 @@ function App() {
     setCurrentPage('dashboard');
     setSelectedCaseId(null);
     setAuthLoading(false);
+    setShowSignUp(false);
   };
 
   const handleNavigate = (page: Page) => {
@@ -73,9 +83,22 @@ function App() {
     setCurrentPage('cases');
   };
 
-  // Show login page if not authenticated
+  // Show login/signup page if not authenticated
   if (!isAuthenticated) {
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+    if (showSignUp) {
+      return (
+        <SignUpPage
+          onSignUpSuccess={handleSignUpSuccess}
+          onSwitchToLogin={() => setShowSignUp(false)}
+        />
+      );
+    }
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onSwitchToSignUp={() => setShowSignUp(true)}
+      />
+    );
   }
 
   // Show loading while fetching user

@@ -194,6 +194,15 @@ async function uploadFile<T>(
 
 export const api = {
   // Auth endpoints
+  async signup(userData: { username: string; email: string; password: string; full_name?: string }): Promise<TokenResponse> {
+    const response = await fetchApi<TokenResponse>('/api/v1/auth/signup', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    }, false);
+    setTokens(response.access_token, response.refresh_token);
+    return response;
+  },
+
   async login(credentials: LoginRequest): Promise<TokenResponse> {
     const response = await fetchApi<TokenResponse>('/api/v1/auth/login', {
       method: 'POST',

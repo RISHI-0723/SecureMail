@@ -71,10 +71,14 @@ class SecurityPosture(BaseModel):
     - low_penalty = low_count * 1
 
     This formula is deterministic and explainable.
+
+    Note: overall_score can be None when there's insufficient evidence to assess
+    (e.g., no email traffic detected in a non-email PCAP).
     """
-    overall_score: float = Field(
+    overall_score: Optional[float] = Field(
+        None,
         ge=0.0, le=100.0,
-        description="Overall security score 0-100"
+        description="Overall security score 0-100, or null if cannot assess"
     )
     overall_risk: RiskLevel = Field(description="Overall risk level")
 

@@ -1,47 +1,75 @@
 /**
- * Login Page - Professional Premium UI
- * Left side: Branding, Right side: Sign-in card
+ * Sign Up Page - User Registration
+ * Left side: Branding, Right side: Sign-up card
  */
 import { useState } from 'react';
 import {
   Shield,
-  LogIn,
+  UserPlus,
   AlertCircle,
   Lock,
   User,
   Eye,
   EyeOff,
-  Activity,
+  Mail,
   FileSearch,
   ShieldCheck,
+  Activity,
 } from 'lucide-react';
 import { api, ApiError } from '@/services/api';
 
-interface LoginPageProps {
-  onLoginSuccess: () => void;
-  onSwitchToSignUp?: () => void;
+interface SignUpPageProps {
+  onSignUpSuccess: () => void;
+  onSwitchToLogin: () => void;
 }
 
-export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) {
+export function SignUpPage({ onSignUpSuccess, onSwitchToLogin }: SignUpPageProps) {
   const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    // Client-side validation
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters long');
+      return;
+    }
+
+    if (!username.trim() || !email.trim()) {
+      setError('Username and email are required');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      await api.login({ username, password });
-      onLoginSuccess();
+      // Call signup endpoint
+      await api.signup({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+        full_name: fullName.trim() || undefined,
+      });
+      onSignUpSuccess();
     } catch (err) {
       if (err instanceof ApiError) {
         setError(err.message);
       } else {
-        setError('Login failed. Please try again.');
+        setError('Registration failed. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -76,16 +104,16 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
 
           {/* Tagline */}
           <h2 className="text-4xl xl:text-5xl font-bold text-white mb-6 leading-tight">
-            Cryptographic Security
+            Join SecureMailScope
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">
-              Posture Assessment
+              Professional Forensics
             </span>
           </h2>
 
           <p className="text-slate-400 text-lg mb-10 max-w-md">
-            Advanced PCAP analysis for SMTP, IMAP, and POP3 communications with
-            TLS intelligence and certificate verification.
+            Create your account to analyze PCAP files, detect security vulnerabilities,
+            and generate comprehensive forensic reports.
           </p>
 
           {/* Features */}
@@ -137,7 +165,7 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
         </div>
       </div>
 
-      {/* Right Side - Login Form */}
+      {/* Right Side - Sign Up Form */}
       <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
@@ -151,11 +179,11 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
             </div>
           </div>
 
-          {/* Login Card */}
+          {/* Sign Up Card */}
           <div className="bg-slate-900/50 backdrop-blur-sm border border-slate-800 rounded-2xl p-8 shadow-xl">
             <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-white mb-2">Welcome Back</h2>
-              <p className="text-slate-400">Sign in to access your dashboard</p>
+              <h2 className="text-2xl font-bold text-white mb-2">Create Account</h2>
+              <p className="text-slate-400">Sign up to get started</p>
             </div>
 
             {/* Error Alert */}
@@ -166,11 +194,11 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
               </div>
             )}
 
-            {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Sign Up Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="username" className="block text-sm font-medium text-slate-300 mb-2">
-                  Username or Email
+                  Username *
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -180,17 +208,58 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
-                    placeholder="Enter your username"
+                    placeholder="Choose a username"
                     required
                     disabled={isLoading}
                     autoComplete="username"
+                    pattern="^[a-zA-Z0-9_]+$"
+                    title="Username can only contain letters, numbers, and underscores"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+                  Email *
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
+                    placeholder="your.email@example.com"
+                    required
+                    disabled={isLoading}
+                    autoComplete="email"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="fullName" className="block text-sm font-medium text-slate-300 mb-2">
+                  Full Name (Optional)
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <input
+                    id="fullName"
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
+                    placeholder="Your full name"
+                    disabled={isLoading}
+                    autoComplete="name"
                   />
                 </div>
               </div>
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-slate-300 mb-2">
-                  Password
+                  Password *
                 </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
@@ -200,10 +269,11 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
-                    placeholder="Enter your password"
+                    placeholder="Create a strong password"
                     required
                     disabled={isLoading}
-                    autoComplete="current-password"
+                    autoComplete="new-password"
+                    minLength={8}
                   />
                   <button
                     type="button"
@@ -211,6 +281,34 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">At least 8 characters</p>
+              </div>
+
+              <div>
+                <label htmlFor="confirmPassword" className="block text-sm font-medium text-slate-300 mb-2">
+                  Confirm Password *
+                </label>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                  <input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full bg-slate-800/50 border border-slate-700 rounded-lg pl-10 pr-12 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-colors"
+                    placeholder="Confirm your password"
+                    required
+                    disabled={isLoading}
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
@@ -223,32 +321,27 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
                 {isLoading ? (
                   <>
                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Signing in...
+                    Creating account...
                   </>
                 ) : (
                   <>
-                    <LogIn className="w-5 h-5" />
-                    Sign In
+                    <UserPlus className="w-5 h-5" />
+                    Create Account
                   </>
                 )}
               </button>
             </form>
 
             {/* Footer */}
-            <div className="mt-8 pt-6 border-t border-slate-800">
-              {onSwitchToSignUp && (
-                <p className="text-center text-slate-400 text-sm mb-4">
-                  Don't have an account?{' '}
-                  <button
-                    onClick={onSwitchToSignUp}
-                    className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors"
-                  >
-                    Create Account
-                  </button>
-                </p>
-              )}
-              <p className="text-center text-slate-500 text-sm">
-                Secure authentication with JWT tokens
+            <div className="mt-6 pt-6 border-t border-slate-800">
+              <p className="text-center text-slate-400 text-sm">
+                Already have an account?{' '}
+                <button
+                  onClick={onSwitchToLogin}
+                  className="text-cyan-400 hover:text-cyan-300 font-medium transition-colors"
+                >
+                  Sign In
+                </button>
               </p>
               <div className="flex items-center justify-center gap-4 mt-4">
                 <div className="flex items-center gap-1.5 text-slate-600 text-xs">
@@ -257,12 +350,11 @@ export function LoginPage({ onLoginSuccess, onSwitchToSignUp }: LoginPageProps) 
                 </div>
                 <div className="flex items-center gap-1.5 text-slate-600 text-xs">
                   <ShieldCheck className="w-3 h-3" />
-                  RBAC enabled
+                  Secure signup
                 </div>
               </div>
             </div>
           </div>
-
         </div>
       </div>
     </div>
