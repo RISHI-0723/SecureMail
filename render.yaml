@@ -37,7 +37,7 @@ services:
       - key: ADMIN_PASSWORD
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://securemailscope-frontend.onrender.com
+        value: https://secure-mail-six.vercel.app,http://localhost:5173
       - key: MAX_PCAP_SIZE_MB
         value: 50
       - key: ML_ENABLED

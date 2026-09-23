@@ -57,9 +57,9 @@ services:
       - key: ADMIN_PASSWORD
         generateValue: true
 
-      # CORS - UPDATE THIS after Vercel deployment
+      # CORS - Vercel frontend URL
       - key: CORS_ORIGINS
-        value: https://securemailscope.vercel.app
+        value: https://secure-mail-six.vercel.app,http://localhost:5173
 
       # PCAP Limits (20MB for demo - synchronous execution constraint)
       - key: MAX_PCAP_SIZE_MB
@@ -67,7 +67,7 @@ services:
 
       # Features
       - key: ML_ENABLED
-        value: false  # Disabled for free demo
+        value: true  # Enabled - uses Isolation Forest for anomaly detection
       - key: BLOCKCHAIN_ENABLED
         value: false
 
