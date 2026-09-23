@@ -215,7 +215,74 @@ def execute_phase2_analysis(db: Session, job_id: str) -> Dict[str, Any]:
         # Step 5: Persist results
         job.stage = "PERSISTING_RESULTS"
         job.progress_percent = "80"
-        db.commit()
+
+        logger.info(
+            "PERSISTING_RESULTS_STAGE_COMMIT_STARTED",
+            extra={
+                "event": "PERSISTING_RESULTS_STAGE_COMMIT_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE2",
+                "stage": "PERSISTING_RESULTS"
+            }
+        )
+
+        stage_commit_start_time = datetime.now(timezone.utc)
+
+        try:
+            db.commit()
+            stage_commit_duration = (datetime.now(timezone.utc) - stage_commit_start_time).total_seconds()
+
+            # Warn if stage commit takes longer than expected
+            if stage_commit_duration > 5.0:
+                logger.warning(
+                    "PERSISTING_RESULTS_STAGE_COMMIT_SLOW",
+                    extra={
+                        "event": "PERSISTING_RESULTS_STAGE_COMMIT_SLOW",
+                        "job_id": job_id,
+                        "evidence_id": job.evidence_id,
+                        "phase": "PHASE2",
+                        "commit_duration_seconds": stage_commit_duration,
+                        "message": f"Stage commit took {stage_commit_duration:.2f}s (expected <5s)"
+                    }
+                )
+
+            logger.info(
+                "PERSISTING_RESULTS_STAGE_COMMIT_COMPLETED",
+                extra={
+                    "event": "PERSISTING_RESULTS_STAGE_COMMIT_COMPLETED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE2",
+                    "commit_duration_seconds": stage_commit_duration
+                }
+            )
+        except Exception as stage_commit_error:
+            logger.error(
+                "PERSISTING_RESULTS_STAGE_COMMIT_FAILED",
+                extra={
+                    "event": "PERSISTING_RESULTS_STAGE_COMMIT_FAILED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE2",
+                    "error": str(stage_commit_error)[:500]
+                },
+                exc_info=True
+            )
+            # Mark job as failed and rollback
+            try:
+                db.rollback()
+                job.status = JobStatus.FAILED
+                job.error_code = "STAGE_COMMIT_FAILED"
+                job.error_message = f"Failed to commit PERSISTING_RESULTS stage: {str(stage_commit_error)[:200]}"
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+            except Exception as rollback_error:
+                logger.error(f"Failed to rollback after stage commit error: {rollback_error}", exc_info=True)
+            raise AnalysisExecutionError(
+                "STAGE_COMMIT_FAILED",
+                f"Failed to commit PERSISTING_RESULTS stage in Phase 2: {str(stage_commit_error)[:200]}"
+            )
 
         # Create message
         if total_packets == 0:
@@ -610,7 +677,74 @@ def execute_phase3_analysis(db: Session, job_id: str, packet_analysis_id: Option
         # Update job stage after risk calculation completes
         job.stage = "PERSISTING_RESULTS"
         job.progress_percent = "90"
-        db.commit()
+
+        logger.info(
+            "PERSISTING_RESULTS_STAGE_COMMIT_STARTED",
+            extra={
+                "event": "PERSISTING_RESULTS_STAGE_COMMIT_STARTED",
+                "job_id": job_id,
+                "evidence_id": job.evidence_id,
+                "phase": "PHASE3",
+                "stage": "PERSISTING_RESULTS"
+            }
+        )
+
+        stage_commit_start_time = datetime.now(timezone.utc)
+
+        try:
+            db.commit()
+            stage_commit_duration = (datetime.now(timezone.utc) - stage_commit_start_time).total_seconds()
+
+            # Warn if stage commit takes longer than expected
+            if stage_commit_duration > 5.0:
+                logger.warning(
+                    "PERSISTING_RESULTS_STAGE_COMMIT_SLOW",
+                    extra={
+                        "event": "PERSISTING_RESULTS_STAGE_COMMIT_SLOW",
+                        "job_id": job_id,
+                        "evidence_id": job.evidence_id,
+                        "phase": "PHASE3",
+                        "commit_duration_seconds": stage_commit_duration,
+                        "message": f"Stage commit took {stage_commit_duration:.2f}s (expected <5s)"
+                    }
+                )
+
+            logger.info(
+                "PERSISTING_RESULTS_STAGE_COMMIT_COMPLETED",
+                extra={
+                    "event": "PERSISTING_RESULTS_STAGE_COMMIT_COMPLETED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "commit_duration_seconds": stage_commit_duration
+                }
+            )
+        except Exception as stage_commit_error:
+            logger.error(
+                "PERSISTING_RESULTS_STAGE_COMMIT_FAILED",
+                extra={
+                    "event": "PERSISTING_RESULTS_STAGE_COMMIT_FAILED",
+                    "job_id": job_id,
+                    "evidence_id": job.evidence_id,
+                    "phase": "PHASE3",
+                    "error": str(stage_commit_error)[:500]
+                },
+                exc_info=True
+            )
+            # Mark job as failed and rollback
+            try:
+                db.rollback()
+                job.status = JobStatus.FAILED
+                job.error_code = "STAGE_COMMIT_FAILED"
+                job.error_message = f"Failed to commit PERSISTING_RESULTS stage: {str(stage_commit_error)[:200]}"
+                job.completed_at = datetime.now(timezone.utc)
+                db.commit()
+            except Exception as rollback_error:
+                logger.error(f"Failed to rollback after stage commit error: {rollback_error}", exc_info=True)
+            raise AnalysisExecutionError(
+                "STAGE_COMMIT_FAILED",
+                f"Failed to commit PERSISTING_RESULTS stage in Phase 3: {str(stage_commit_error)[:200]}"
+            )
 
         logger.info(
             "PERSISTING_RESULTS_STARTED",
