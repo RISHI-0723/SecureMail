@@ -803,15 +803,27 @@ def execute_phase4_analysis(
                     else:
                         ml_status = "INSUFFICIENT_DATA"
                         ml_insights = MLInsights(
-                            ml_enabled=False,
-                            summary="Insufficient data for ML analysis (need 5+ sessions)"
+                            ml_enabled=True,
+                            message="Insufficient data for ML analysis (need 5+ sessions)",
+                            model_version=None,
+                            total_predictions=0,
+                            anomalies_detected=0,
+                            anomalies=[],
+                            top_risk_factors=[],
+                            confidence=0.0
                         )
                         logger.info(f"ML analysis skipped: insufficient data (need 5+ sessions, got {len(feature_vectors)})")
                 else:
                     ml_status = "NO_FEATURES"
                     ml_insights = MLInsights(
-                        ml_enabled=False,
-                        summary="No features extracted for ML analysis"
+                        ml_enabled=True,
+                        message="No features extracted for ML analysis",
+                        model_version=None,
+                        total_predictions=0,
+                        anomalies_detected=0,
+                        anomalies=[],
+                        top_risk_factors=[],
+                        confidence=0.0
                     )
                     logger.info("ML analysis skipped: no features extracted")
 
@@ -823,13 +835,25 @@ def execute_phase4_analysis(
                     exc_info=True
                 )
                 ml_insights = MLInsights(
-                    ml_enabled=False,
-                    summary=f"ML analysis failed: {str(ml_error)}"
+                    ml_enabled=True,
+                    message=f"ML analysis failed: {str(ml_error)}",
+                    model_version=None,
+                    total_predictions=0,
+                    anomalies_detected=0,
+                    anomalies=[],
+                    top_risk_factors=[],
+                    confidence=0.0
                 )
         else:
             ml_insights = MLInsights(
                 ml_enabled=False,
-                summary="ML disabled in configuration"
+                message="ML disabled in configuration",
+                model_version=None,
+                total_predictions=0,
+                anomalies_detected=0,
+                anomalies=[],
+                top_risk_factors=[],
+                confidence=0.0
             )
             logger.info("ML analysis disabled by configuration")
 
@@ -911,7 +935,6 @@ def execute_phase4_analysis(
             aggregated_findings=aggregated_findings,
             correlations=correlations,
             recommendations=recommendations,
-            posture=posture,
             summary=summary
         )
 
@@ -930,8 +953,8 @@ def execute_phase4_analysis(
             "packets_analyzed": security_analysis.total_streams if security_analysis else 0,
         }
 
-        # ML insights (disabled for demo)
-        ml_insights = MLInsights(ml_enabled=False, summary="ML disabled for demo mode")
+        # ML insights already computed above (lines 760-834) - use those results for reporting
+        # Do NOT overwrite ml_insights here
 
         # Generate JSON report
         try:
